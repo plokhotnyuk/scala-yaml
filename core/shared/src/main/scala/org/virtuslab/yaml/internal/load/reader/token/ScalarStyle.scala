@@ -9,25 +9,12 @@ object ScalarStyle {
   case object Literal      extends ScalarStyle('|')
 
   def escapeSpecialCharacter(scalar: String, scalarStyle: ScalarStyle): String =
-    scalarStyle match {
-      case ScalarStyle.DoubleQuoted => scalar
-      case ScalarStyle.SingleQuoted => scalar
-      case ScalarStyle.Literal      => scalar
-      case _ =>
-        scalar.flatMap { char =>
-          char match {
-            case '\\'  => "\\\\"
-            case '\n'  => "\\n"
-            case other => other.toString
-          }
-        }
-    }
+    if (
+      (scalarStyle eq ScalarStyle.DoubleQuoted) ||
+      (scalarStyle eq ScalarStyle.SingleQuoted) ||
+      (scalarStyle eq ScalarStyle.Literal)
+    ) scalar
+    else scalar.replace("\\", "\\\\").replace("\n", "\\n")
 
-  def escapeSpecialCharacterDoubleQuote(scalar: String) =
-    scalar.flatMap { char =>
-      char match {
-        case '\n'  => ""
-        case other => other.toString
-      }
-    }
+  def escapeSpecialCharacterDoubleQuote(scalar: String): String = scalar.replace("\n", "")
 }

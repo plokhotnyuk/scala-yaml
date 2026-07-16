@@ -1,12 +1,7 @@
 package org.virtuslab.yaml.internal.load.reader
 
-import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.collection.mutable.ArrayDeque
 
-import org.virtuslab.yaml.Range
-import org.virtuslab.yaml.internal.load.reader.Reader
-import org.virtuslab.yaml.internal.load.reader.StringReader
 import org.virtuslab.yaml.internal.load.reader.token.Token
 import org.virtuslab.yaml.internal.load.reader.token.TokenKind._
 
@@ -18,7 +13,7 @@ private[reader] case class TokenizerContext(reader: Reader) {
   private var flowSequenceLevel  = 0
   private var flowMappingLevel   = 0
 
-  def indent: Int                     = indentations.lastOption.getOrElse(-1)
+  def indent: Int                     = if (indentations.isEmpty) -1 else indentations.last
   def addIndent(newIndent: Int): Unit = indentations.append(newIndent)
   def removeLastIndent(): Unit        = if (indentations.nonEmpty) indentations.removeLast()
 
