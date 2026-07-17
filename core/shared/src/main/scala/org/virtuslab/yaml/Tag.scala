@@ -40,22 +40,42 @@ object Tag {
   private[yaml] val plusInfinity  = "\\+?(\\.inf|\\.Inf|\\.INF)".r
   private[yaml] val nan           = "\\.nan|\\.NaN|\\.NAN".r
 
-  def resolveTag(value: String, style: Option[ScalarStyle] = None): Tag = {
-    val assumeString = style.exists(s => s == DoubleQuoted || s == SingleQuoted)
-    value match {
-      case null              => nullTag
-      case _ if assumeString => str
-      case nullPattern(_*)   => nullTag
-      case falsePattern(_*)  => boolean
-      case truePattern(_*)   => boolean
-      case int10Pattern(_*)  => int
-      case int8Pattern(_*)   => int
-      case int16Pattern(_*)  => int
-      case floatPattern(_*)  => float
-      case minusInfinity(_*) => float
-      case plusInfinity(_*)  => float
-      case nan(_*)           => float
-      case _                 => str
+  def resolveTag(value: String, style: Option[ScalarStyle] = None): Tag =
+    if (value eq null) nullTag
+    else if (style.exists(s => s == DoubleQuoted || s == SingleQuoted) || value.isEmpty) str
+    else {
+      value.charAt(0) match {
+        case 'n' | 'N' | '~' =>
+          if (nullPattern.matches(value)) nullTag
+          else str
+        case 'f' | 'F' =>
+          if (falsePattern.matches(value)) boolean
+          else str
+        case 't' | 'T' =>
+          if (truePattern.matches(value)) boolean
+          else str
+        case '-' =>
+          if (int10Pattern.matches(value)) int
+          else if (floatPattern.matches(value)) float
+          else if (minusInfinity.matches(value)) float
+          else str
+        case '+' =>
+          if (int10Pattern.matches(value)) int
+          else if (floatPattern.matches(value)) float
+          else if (plusInfinity.matches(value)) float
+          else str
+        case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' =>
+          if (int10Pattern.matches(value)) int
+          else if (int8Pattern.matches(value)) int
+          else if (int16Pattern.matches(value)) int
+          else if (floatPattern.matches(value)) float
+          else str
+        case '.' =>
+          if (floatPattern.matches(value)) float
+          else if (plusInfinity.matches(value)) float
+          else if (nan.matches(value)) float
+          else str
+        case _ => str
+      }
     }
-  }
 }
