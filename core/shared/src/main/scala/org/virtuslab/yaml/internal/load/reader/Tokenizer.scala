@@ -259,11 +259,11 @@ private class StringTokenizer(str: String) extends Tokenizer {
               sb.toString
             case _ if in.isNewline =>
               skipUntilNextToken()
-              sb.append(" ")
+              sb.append(' ')
               readScalar()
             case '\\' if in.peekNext() == '"' =>
               in.skipN(2)
-              sb.append("\"")
+              sb.append('"')
               readScalar()
             case '"' =>
               in.skipCharacter()
@@ -327,7 +327,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         def chompedEmptyLines() =
           while (in.isNextNewline) {
             in.skipCharacter()
-            sb.append("\n")
+            sb.append('\n')
           }
 
         @tailrec
@@ -346,7 +346,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
                   skipUntilNextIndent(foldedIndent)
                 }
                 if (in.column != foldedIndent || in.peek() == Reader.nullTerminator) {
-                  if (chompingIndicator == BlockChompingIndicator.Keep) sb.append("\n")
+                  if (chompingIndicator == BlockChompingIndicator.Keep) sb.append('\n')
                   sb.toString
                 } else readFolded(prevCharWasNewline = true)
               } else {
@@ -362,7 +362,10 @@ private class StringTokenizer(str: String) extends Tokenizer {
                         lastChar = sb.charAt(sb.length - 1)
                         count += 1
                       }
-                      sb.append("\n" * count)
+                      while (count > 0) {
+                        sb.append('\n')
+                        count -= 1
+                      }
                     case Strip => // if strip, strip all trailing newlines and spaces
                       var lastChar = sb.charAt(sb.length - 1)
                       while (lastChar == '\n' || lastChar == ' ') {
@@ -379,11 +382,10 @@ private class StringTokenizer(str: String) extends Tokenizer {
                   }
                   sb.toString // final result
                 } else {
-                  if (prevCharWasNewline || thisLineIsIndented) {
-                    sb.append("\n")
-                  } else {
-                    sb.append(" ")
-                  }
+                  sb.append({
+                    if (prevCharWasNewline || thisLineIsIndented) '\n'
+                    else ' '
+                  })
                   readFolded(prevCharWasNewline = true)
                 }
               }
@@ -542,7 +544,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
     def chompedEmptyLines() =
       while (in.isNextNewline) {
         in.skipCharacter()
-        sb.append("\n")
+        sb.append('\n')
       }
 
     def readScalar(): String = {
