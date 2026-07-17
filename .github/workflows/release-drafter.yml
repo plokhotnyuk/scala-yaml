@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - perf-fork
 
 jobs:
   update_release_draft:
