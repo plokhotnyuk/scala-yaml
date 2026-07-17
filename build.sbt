@@ -10,14 +10,14 @@ enablePlugins(NoPublishPlugin)
 
 inThisBuild(
   List(
-    organization       := "org.virtuslab",
+    organization       := "com.github.plokhotnyuk.scala-yaml",
     crossScalaVersions := Seq(scala2Version, scala3Version),
     scalaVersion       := scala3Version,
     version ~= { dynVer =>
       if (isCI) dynVer
       else localSnapshotVersion // only for local publishing
     },
-    homepage := Some(url("https://github.com/VirtusLab/scala-yaml")),
+    homepage := Some(url("https://github.com/plokhotnyuk/scala-yaml")),
     licenses := List(
       "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")
     ),
