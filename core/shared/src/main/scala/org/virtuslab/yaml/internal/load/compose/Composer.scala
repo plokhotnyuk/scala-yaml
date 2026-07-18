@@ -142,34 +142,31 @@ object ComposerImpl extends Composer {
 
     @tailrec
     def parseMappings(
-        mappingsBuffer: mutable.ListBuffer[(Node, Node)],
+        mappingsBuffer: mutable.ArrayBuffer[(Node, Node)],
         firstChildPos: Option[Range] = None
-    ): Node.MappingNode = {
-      ctx.events match {
-        case e :: tail =>
-          e.kind match {
-            case _: EventKind.MappingEnd.type =>
-              ctx.events = tail
-              val mapping =
-                new Node.MappingNode(ListMap.from(mappingsBuffer), Tag.map, firstChildPos)
-              if (anchorOpt.isDefined) aliases.put(anchorOpt.get, mapping)
-              mapping
-            case _: EventKind.StreamStart.type | _: EventKind.StreamEnd.type |
-                _: EventKind.DocumentStart | _: EventKind.DocumentEnd =>
-              throw ComposerException(
-                ComposerError(s"Invalid event, got: ${e.kind}, expected Node")
-              )
-
-            case _ =>
-              val keyNode = composeNode(ctx, aliases)
-              val vNode   = composeNode(ctx, aliases)
-              mappingsBuffer.addOne((keyNode, vNode))
-              parseMappings(mappingsBuffer, keyNode.pos)
-          }
-        case Nil => throw ComposerException(ComposerError("Not found MappingEnd event for mapping"))
-      }
+    ): Node.MappingNode = ctx.events match {
+      case e :: tail =>
+        e.kind match {
+          case _: EventKind.MappingEnd.type =>
+            ctx.events = tail
+            val mapping =
+              new Node.MappingNode(ListMap.from(mappingsBuffer), Tag.map, firstChildPos)
+            if (anchorOpt.isDefined) aliases.put(anchorOpt.get, mapping)
+            mapping
+          case _: EventKind.StreamStart.type | _: EventKind.StreamEnd.type |
+              _: EventKind.DocumentStart | _: EventKind.DocumentEnd =>
+            throw ComposerException(
+              ComposerError(s"Invalid event, got: ${e.kind}, expected Node")
+            )
+          case _ =>
+            val keyNode   = composeNode(ctx, aliases)
+            val valueNode = composeNode(ctx, aliases)
+            mappingsBuffer.addOne((keyNode, valueNode))
+            parseMappings(mappingsBuffer, keyNode.pos)
+        }
+      case Nil => throw ComposerException(ComposerError("Not found MappingEnd event for mapping"))
     }
 
-    parseMappings(new mutable.ListBuffer[(Node, Node)])
+    parseMappings(new mutable.ArrayBuffer[(Node, Node)])
   }
 }
