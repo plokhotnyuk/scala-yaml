@@ -3,6 +3,7 @@ package org.virtuslab.yaml.internal.load.compose
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.immutable.ListMap
+import scala.util.control.NoStackTrace
 
 import org.virtuslab.yaml.ComposerError
 import org.virtuslab.yaml.Node
@@ -27,9 +28,16 @@ object ComposerImpl extends Composer {
   // A lightweight mutable wrapper avoiding `Result` allocation per event.
   private class Context(var events: List[Event])
 
+  // Internal exception used to fast-fail without paying the stack-trace generation cost
+  private case class ComposerException(err: YamlError) extends RuntimeException with NoStackTrace
+
   override def fromEvents(events: List[Event]): Either[YamlError, Node] = events match {
     case Nil => new Left(ComposerError("No events available"))
-    case _   => composeNode(new Context(events), mutable.Map.empty)
+    case _ =>
+      try new Right(composeNode(new Context(events), mutable.Map.empty))
+      catch {
+        case ComposerException(err) => new Left(err)
+      }
   }
 
   override def multipleFromEvents(events: List[Event]): Either[YamlError, List[Node]] = {
@@ -37,70 +45,71 @@ object ComposerImpl extends Composer {
     val ctx     = new Context(events)
 
     @tailrec
-    def go(out: mutable.ListBuffer[Node]): Either[YamlError, List[Node]] =
+    def go(out: mutable.ListBuffer[Node]): List[Node] =
       ctx.events match {
         case e :: tail =>
           e.kind match {
             case _: EventKind.StreamEnd.type =>
               ctx.events = tail
-              new Right(out.toList)
+              out.toList
             case _: EventKind.StreamStart.type | _: EventKind.DocumentEnd =>
               ctx.events = tail
               go(out)
             case _ =>
-              composeNode(ctx, aliases) match {
-                case Right(node) =>
-                  out.addOne(node)
-                  go(out)
-                case err => err.asInstanceOf[Either[YamlError, List[Node]]]
-              }
+              out.addOne(composeNode(ctx, aliases))
+              go(out)
           }
-        case Nil => new Right(out.toList)
+        case Nil => out.toList
       }
 
-    go(new mutable.ListBuffer[Node])
+    try new Right(go(new mutable.ListBuffer[Node]))
+    catch {
+      case ComposerException(err) => new Left(err)
+    }
   }
 
   private def composeNode(
       ctx: Context,
       aliases: mutable.Map[Anchor, Node]
-  ): Either[YamlError, Node] = ctx.events match {
+  ): Node = ctx.events match {
     case head :: tail =>
       // Advance the pointer so that recursive calls see the remaining sequence
       ctx.events = tail
       head.kind match {
         case s: EventKind.Scalar =>
-          val tag: Tag = s.metadata.tag.getOrElse(Tag.resolveTag(s.value, new Some(s.style)))
+          val tag: Tag = s.metadata.tag.getOrElse(Tag.resolveTag(s.value, Some(s.style)))
           val node     = new Node.ScalarNode(s.value, tag, head.pos)
           s.metadata.anchor.foreach(anchor => aliases.put(anchor, node))
-          new Right(node)
+          node
         case ss: EventKind.SequenceStart =>
           composeSequenceNode(ctx, ss.metadata.anchor, aliases)
         case ms: EventKind.MappingStart =>
           composeMappingNode(ctx, ms.metadata.anchor, aliases)
         case a: EventKind.Alias =>
           aliases.get(a.id) match {
-            case Some(node) => new Right(node)
-            case None       => new Left(ComposerError(s"There is no anchor for ${a.id} alias"))
+            case Some(node) => node
+            case None =>
+              throw ComposerException(ComposerError(s"There is no anchor for ${a.id} alias"))
           }
         case _: EventKind.StreamStart.type | _: EventKind.DocumentStart =>
           composeNode(ctx, aliases)
-        case event => new Left(ComposerError(s"Expected YAML node, but found: $event"))
+        case event =>
+          throw ComposerException(ComposerError(s"Expected YAML node, but found: $event"))
       }
-    case Nil => new Left(ComposerError("No events available"))
+    case Nil => throw ComposerException(ComposerError("No events available"))
   }
 
   private def composeSequenceNode(
       ctx: Context,
       anchorOpt: Option[Anchor],
       aliases: mutable.Map[Anchor, Node]
-  ): Either[YamlError, Node.SequenceNode] = {
+  ): Node.SequenceNode = {
 
     @tailrec
     def parseChildren(
         children: mutable.ListBuffer[Node],
         firstChildPos: Option[Range] = None
-    ): Either[YamlError, Node.SequenceNode] = {
+    ): Node.SequenceNode = {
       ctx.events match {
         case e :: tail =>
           e.kind match {
@@ -108,19 +117,17 @@ object ComposerImpl extends Composer {
               ctx.events = tail
               val sequence = new Node.SequenceNode(children.toList, Tag.seq, firstChildPos)
               if (anchorOpt.isDefined) aliases.put(anchorOpt.get, sequence)
-              new Right(sequence)
+              sequence
             case _ =>
-              composeNode(ctx, aliases) match {
-                case Right(node) =>
-                  children.addOne(node)
-                  val nextPos =
-                    if (firstChildPos.isEmpty) node.pos
-                    else firstChildPos
-                  parseChildren(children, nextPos)
-                case err => err.asInstanceOf[Either[YamlError, Node.SequenceNode]]
-              }
+              val node = composeNode(ctx, aliases)
+              children.addOne(node)
+              val nextPos =
+                if (firstChildPos.isEmpty) node.pos
+                else firstChildPos
+              parseChildren(children, nextPos)
           }
-        case Nil => new Left(ComposerError("Not found SequenceEnd event for sequence"))
+        case Nil =>
+          throw ComposerException(ComposerError("Not found SequenceEnd event for sequence"))
       }
     }
 
@@ -131,13 +138,13 @@ object ComposerImpl extends Composer {
       ctx: Context,
       anchorOpt: Option[Anchor],
       aliases: mutable.Map[Anchor, Node]
-  ): Either[YamlError, Node.MappingNode] = {
+  ): Node.MappingNode = {
 
     @tailrec
     def parseMappings(
         mappingsBuffer: mutable.ListBuffer[(Node, Node)],
         firstChildPos: Option[Range] = None
-    ): Either[YamlError, Node.MappingNode] = {
+    ): Node.MappingNode = {
       ctx.events match {
         case e :: tail =>
           e.kind match {
@@ -146,24 +153,20 @@ object ComposerImpl extends Composer {
               val mapping =
                 new Node.MappingNode(ListMap.from(mappingsBuffer), Tag.map, firstChildPos)
               if (anchorOpt.isDefined) aliases.put(anchorOpt.get, mapping)
-              Right(mapping)
+              mapping
             case _: EventKind.StreamStart.type | _: EventKind.StreamEnd.type |
                 _: EventKind.DocumentStart | _: EventKind.DocumentEnd =>
-              Left(ComposerError(s"Invalid event, got: ${e.kind}, expected Node"))
+              throw ComposerException(
+                ComposerError(s"Invalid event, got: ${e.kind}, expected Node")
+              )
 
             case _ =>
-              composeNode(ctx, aliases) match {
-                case Right(keyNode) =>
-                  composeNode(ctx, aliases) match {
-                    case Right(vNode) =>
-                      mappingsBuffer.addOne((keyNode, vNode))
-                      parseMappings(mappingsBuffer, keyNode.pos)
-                    case Left(err) => Left(err)
-                  }
-                case Left(err) => Left(err)
-              }
+              val keyNode = composeNode(ctx, aliases)
+              val vNode   = composeNode(ctx, aliases)
+              mappingsBuffer.addOne((keyNode, vNode))
+              parseMappings(mappingsBuffer, keyNode.pos)
           }
-        case Nil => Left(ComposerError("Not found MappingEnd event for mapping"))
+        case Nil => throw ComposerException(ComposerError("Not found MappingEnd event for mapping"))
       }
     }
 
