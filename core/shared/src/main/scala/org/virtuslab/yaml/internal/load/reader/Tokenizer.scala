@@ -29,14 +29,15 @@ private class StringTokenizer(str: String) extends Tokenizer {
   private val ctx = TokenizerContext(str)
   private val in  = ctx.reader
 
-  override def peekToken(): Either[YamlError, Token] = ctx.tokens.headOption match {
-    case Some(token) => new Right(token)
-    case _ =>
-      try new Right(getToken())
+  override def peekToken(): Either[YamlError, Token] = new Right({
+    val tokens = ctx.tokens
+    if (tokens.isEmpty) {
+      try getToken()
       catch {
-        case e: ScannerError => new Left(e)
+        case e: ScannerError => return new Left(e)
       }
-  }
+    } else tokens.apply(0)
+  })
 
   override def popToken(): Token = ctx.tokens.removeHead()
 
