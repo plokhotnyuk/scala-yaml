@@ -114,20 +114,18 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private val directives        = defaultDirectives.to(mutable.Map)
 
   private[yaml] def getEvents(): Either[YamlError, List[Event]] = {
-    @tailrec
-    def loop(events: mutable.ArrayDeque[Event]): Either[YamlError, List[Event]] = {
-      getNextEvent() match {
-        case Right(event) =>
-          if (event.kind != EventKind.StreamEnd) loop(events.append(event))
-          else Right(events.append(event).toList)
-        case Left(err) => Left(err)
+    val events = new mutable.ListBuffer[Event]
+    while (productions.length > 0) {
+      getNextEventImpl() match {
+        case Right(event) => events.append(event)
+        case err          => return err.asInstanceOf[Either[YamlError, List[Event]]]
       }
     }
-    loop(new mutable.ArrayDeque())
+    new Right(events.toList)
   }
 
   override def getNextEvent(): Either[YamlError, Event] =
-    if (productions.size > 0) getNextEventImpl()
+    if (productions.length > 0) getNextEventImpl()
     else Right(Event.streamEnd)
 
   private def clearDirectives(): Unit = {
