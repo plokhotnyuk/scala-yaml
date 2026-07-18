@@ -42,7 +42,8 @@ object Tag {
 
   def resolveTag(value: String, style: Option[ScalarStyle] = None): Tag =
     if (value eq null) nullTag
-    else if (style.exists(s => s == DoubleQuoted || s == SingleQuoted) || value.isEmpty) str
+    else if (style.exists(s => s == DoubleQuoted || s == SingleQuoted)) str
+    else if (value.isEmpty) nullTag
     else {
       value.charAt(0) match {
         case 'n' | 'N' | '~' =>
