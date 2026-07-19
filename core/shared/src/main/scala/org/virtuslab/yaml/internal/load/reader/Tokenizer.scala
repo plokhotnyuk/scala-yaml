@@ -184,7 +184,6 @@ private class StringTokenizer(str: String) extends Tokenizer {
       case '%' =>
         val range = in.range
         in.skipCharacter() // skip %
-
         in.peek() match {
           case 'Y' if in.peekN(4) == "YAML" =>
             in.skipN(4)
@@ -254,25 +253,27 @@ private class StringTokenizer(str: String) extends Tokenizer {
         val sb = new java.lang.StringBuilder
 
         @tailrec
-        def readScalar(): String =
-          in.peek() match {
-            case Reader.nullTerminator =>
-              sb.toString
-            case _ if in.isNewline =>
+        def readScalar(): String = in.peek() match {
+          case Reader.nullTerminator =>
+            sb.toString
+          case '"' =>
+            in.skipCharacter()
+            sb.toString
+          case '\\' if in.peekNext() == '"' =>
+            in.skipN(2)
+            sb.append('"')
+            readScalar()
+          case c =>
+            if (c == '\n' || c == '\r' && in.peekNext() == '\n') {
               skipUntilNextToken()
               sb.append(' ')
               readScalar()
-            case '\\' if in.peekNext() == '"' =>
-              in.skipN(2)
-              sb.append('"')
-              readScalar()
-            case '"' =>
+            } else {
               in.skipCharacter()
-              sb.toString
-            case _ =>
-              sb.append(in.read())
+              sb.append(c)
               readScalar()
-          }
+            }
+        }
 
         val isPlainKeyAllowed = ctx.isPlainKeyAllowed
         val range             = in.range
@@ -284,25 +285,29 @@ private class StringTokenizer(str: String) extends Tokenizer {
         else queue.append(scalarToken)
       case '\'' =>
         val sb = new java.lang.StringBuilder
+
         @tailrec
-        def readScalar(): String =
-          in.peek() match {
-            case Reader.nullTerminator => sb.toString
-            case '\'' if in.peekNext() == '\'' =>
+        def readScalar(): String = in.peek() match {
+          case Reader.nullTerminator => sb.toString
+          case '\'' =>
+            if (in.peekNext() == '\'') {
               in.skipN(2)
               sb.append('\'')
               readScalar()
-            case '\n' =>
-              sb.append(' ')
-              skipUntilNextToken()
-              readScalar()
-            case '\'' =>
+            } else {
               in.skipCharacter()
               sb.toString
-            case _ =>
-              sb.append(in.read())
-              readScalar()
-          }
+            }
+          case '\n' =>
+            sb.append(' ')
+            skipUntilNextToken()
+            readScalar()
+          case c =>
+            in.skipCharacter()
+            sb.append(c)
+            readScalar()
+        }
+
         val isPlainKeyAllowed = ctx.isPlainKeyAllowed
         val range             = in.range
         in.skipCharacter() // skip single quote
@@ -325,12 +330,6 @@ private class StringTokenizer(str: String) extends Tokenizer {
         val foldedIndent = indentation.getOrElse(in.column)
         skipUntilNextIndent(foldedIndent)
 
-        def chompedEmptyLines() =
-          while (in.isNextNewline) {
-            in.skipCharacter()
-            sb.append('\n')
-          }
-
         @tailrec
         def readFolded(
             prevCharWasNewline: Boolean = false,
@@ -341,7 +340,10 @@ private class StringTokenizer(str: String) extends Tokenizer {
             case _ if in.isNewline =>
               ctx.isPlainKeyAllowed = true
               if (in.isNextNewline) {
-                chompedEmptyLines()
+                while (in.isNextNewline) {
+                  in.skipCharacter()
+                  sb.append('\n')
+                }
                 if (in.peek() != Reader.nullTerminator) {
                   in.skipCharacter()
                   skipUntilNextIndent(foldedIndent)
