@@ -3,7 +3,7 @@ import BuildHelper._
 def scala3Version        = "3.3.8"
 def scala2Version        = "2.13.18"
 def projectName          = "scala-yaml"
-def localSnapshotVersion = "0.2.0-SNAPSHOT"
+def localSnapshotVersion = "0.4.0-SNAPSHOT"
 def isCI                 = System.getenv("CI") != null
 
 enablePlugins(NoPublishPlugin)

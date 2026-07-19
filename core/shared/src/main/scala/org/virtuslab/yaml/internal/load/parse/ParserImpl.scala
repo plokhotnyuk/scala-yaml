@@ -1,17 +1,14 @@
 package org.virtuslab.yaml.internal.load.parse
 
 import scala.collection.mutable
-
-import org.virtuslab.yaml.CoreSchemaTag
-import org.virtuslab.yaml.CustomTag
-import org.virtuslab.yaml.ParseError
-import org.virtuslab.yaml.Tag
-import org.virtuslab.yaml.YamlError
+import org.virtuslab.yaml.{CoreSchemaTag, CustomTag, ParseError, Tag, YamlError}
 import org.virtuslab.yaml.internal.load.TagValue
 import org.virtuslab.yaml.internal.load.reader.Tokenizer
 import org.virtuslab.yaml.internal.load.reader.token.ScalarStyle
 import org.virtuslab.yaml.internal.load.reader.token.Token
 import org.virtuslab.yaml.internal.load.reader.token.TokenKind
+
+import scala.annotation.tailrec
 
 private sealed abstract class Production
 private object Production {
@@ -100,7 +97,6 @@ private object Production {
  * 
 */
 final class ParserImpl private (in: Tokenizer) extends Parser {
-
   import Production._
 
   private val productions = mutable.ArrayDeque[Production](ParseStreamStart)
@@ -108,20 +104,24 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private val defaultDirectives = Map("!" -> "!", "!!" -> "tag:yaml.org,2002:")
   private val directives        = defaultDirectives.to(mutable.Map)
 
-  private[yaml] def getEvents(): Either[YamlError, List[Event]] = {
-    val events = new mutable.ListBuffer[Event]
-    while (productions.length > 0) {
-      getNextEventImpl() match {
-        case Right(event) => events.append(event)
-        case err          => return err.asInstanceOf[Either[YamlError, List[Event]]]
-      }
+  private[yaml] def getEvents(): Either[YamlError, List[Event]] =
+    try {
+      val events = new mutable.ListBuffer[Event]
+      while (productions.length > 0) events.append(getNextEventImpl())
+      new Right(events.toList)
+    } catch {
+      case err: YamlError => new Left(err)
     }
-    new Right(events.toList)
-  }
 
   override def getNextEvent(): Either[YamlError, Event] =
-    if (productions.length > 0) getNextEventImpl()
-    else new Right(Event.streamEnd)
+    try
+      new Right({
+        if (productions.length > 0) getNextEventImpl()
+        else Event.streamEnd
+      })
+    catch {
+      case err: YamlError => new Left(err)
+    }
 
   private def clearDirectives(): Unit = {
     directives.clear()
@@ -131,22 +131,20 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private def parseStreamStart(token: Token) = {
     productions.prepend(ParseStreamEnd)
     productions.prepend(ParseDocumentStartOpt)
-    new Right(Event(EventKind.StreamStart, token.range))
+    Event(EventKind.StreamStart, token.range)
   }
 
   private def parseDocumentStart(token: Token) = {
     productions.prepend(ParseDocumentEnd)
     productions.prepend(ParseNode)
-    new Right(
-      Event(
-        EventKind.DocumentStart(explicit = {
-          (token.kind eq TokenKind.DocumentStart) && {
-            in.popToken()
-            true
-          }
-        }),
-        token.range
-      )
+    Event(
+      EventKind.DocumentStart(explicit = {
+        (token.kind eq TokenKind.DocumentStart) && {
+          in.popToken()
+          true
+        }
+      }),
+      token.range
     )
   }
 
@@ -171,24 +169,22 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
 
   private def parseDocumentEnd(token: Token) = {
     clearDirectives()
-    new Right(
-      Event(
-        EventKind.DocumentEnd(explicit = {
-          (token.kind eq TokenKind.DocumentEnd) && {
-            in.popToken()
-            true
-          }
-        }),
-        token.range
-      )
+    Event(
+      EventKind.DocumentEnd(explicit = {
+        (token.kind eq TokenKind.DocumentEnd) && {
+          in.popToken()
+          true
+        }
+      }),
+      token.range
     )
   }
 
   private def parseMappingEnd(token: Token) =
     if (token.kind eq TokenKind.BlockEnd) {
       in.popToken()
-      new Right(Event(EventKind.MappingEnd, token.range))
-    } else new Left(ParseError.from(TokenKind.BlockEnd, token))
+      Event(EventKind.MappingEnd, token.range)
+    } else throw ParseError.from(TokenKind.BlockEnd, token)
 
   private def parseMappingEntry(token: Token) =
     if (token.kind eq TokenKind.MappingKey) {
@@ -197,24 +193,24 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
       productions.prepend(ParseMappingValue)
       productions.prepend(ParseScalar)
       getNextEventImpl()
-    } else new Left(ParseError.from(TokenKind.MappingKey, token))
+    } else throw ParseError.from(TokenKind.MappingKey, token)
 
   private def parseMappingValue(token: Token) =
     if (token.kind eq TokenKind.MappingValue) {
       in.popToken()
       productions.prepend(ParseMappingValueNode)
       getNextEventImpl()
-    } else new Left(ParseError.from(TokenKind.MappingValue, token))
+    } else throw ParseError.from(TokenKind.MappingValue, token)
 
   private def parseMappingValueNode(token: Token) =
     if (token.kind eq TokenKind.SequenceValue) {
       productions.prepend(ParseMappingSequenceEnd)
       productions.prepend(ParseSequenceEntry)
-      new Right(Event(EventKind.SequenceStart(), token.range))
+      Event(EventKind.SequenceStart(), token.range)
     } else parseNode(token)
 
   private def parseMappingSequenceEnd(token: Token) =
-    new Right(Event(EventKind.SequenceEnd, token.range))
+    Event(EventKind.SequenceEnd, token.range)
 
   private def parseMappingEntryOpt(token: Token) = {
     if (token.kind eq TokenKind.MappingKey) productions.prepend(ParseMappingEntry)
@@ -224,8 +220,8 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private def parseSequenceEnd(token: Token) =
     if (token.kind eq TokenKind.BlockEnd) {
       in.popToken()
-      new Right(Event(EventKind.SequenceEnd, token.range))
-    } else new Left(ParseError.from(TokenKind.BlockEnd, token))
+      Event(EventKind.SequenceEnd, token.range)
+    } else throw ParseError.from(TokenKind.BlockEnd, token)
 
   private def parseSequenceEntry(token: Token) =
     if (token.kind eq TokenKind.SequenceValue) {
@@ -233,7 +229,7 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
       productions.prepend(ParseSequenceEntryOpt)
       productions.prepend(ParseNode)
       getNextEventImpl()
-    } else new Left(ParseError.from(TokenKind.SequenceValue, token))
+    } else throw ParseError.from(TokenKind.SequenceValue, token)
 
   private def parseSequenceEntryOpt(token: Token) = {
     if (token.kind eq TokenKind.SequenceValue) productions.prepend(ParseSequenceEntry)
@@ -243,8 +239,8 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private def parseFlowMappingEnd(token: Token) =
     if (token.kind eq TokenKind.FlowMappingEnd) {
       in.popToken()
-      new Right(Event(EventKind.MappingEnd, token.range))
-    } else new Left(ParseError.from(TokenKind.FlowMappingEnd, token))
+      Event(EventKind.MappingEnd, token.range)
+    } else throw ParseError.from(TokenKind.FlowMappingEnd, token)
 
   private def parseFlowMappingEntry(token: Token) = {
     if (token.kind eq TokenKind.MappingKey) {
@@ -261,13 +257,15 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
       productions.prependAll(Array(ParseFlowNode, ParseFlowMappingComma, ParseFlowMappingEntry))
       parseFlowNode(token)
     case k =>
-      if (k eq TokenKind.MappingKey)
+      if (k eq TokenKind.MappingKey) {
         productions.prepend(
           ParseFlowMappingEntry
         ) // flow mapping start right after flow mapping start{>>{
-      else if (k eq TokenKind.FlowMappingStart)
+      } else if (k eq TokenKind.FlowMappingStart) {
         productions.prepend(ParseFlowNode) // flow sequence start right after flow mapping start{>>[
-      else if (k eq TokenKind.FlowSequenceStart) productions.prepend(ParseFlowNode)
+      } else if (k eq TokenKind.FlowSequenceStart) {
+        productions.prepend(ParseFlowNode)
+      }
       getNextEventImpl()
   }
 
@@ -282,14 +280,14 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private def parseFlowSeqEnd(token: Token) =
     if (token.kind eq TokenKind.FlowSequenceEnd) {
       in.popToken()
-      new Right(Event(EventKind.SequenceEnd, token.range))
-    } else new Left(ParseError.from(TokenKind.FlowSequenceEnd, token))
+      Event(EventKind.SequenceEnd, token.range)
+    } else throw ParseError.from(TokenKind.FlowSequenceEnd, token)
 
   private def parseFlowSeqEntry(token: Token) = {
     productions.prepend(ParseFlowSeqComma)
     if (token.kind eq TokenKind.MappingKey) {
       productions.prepend(ParseFlowSeqPairKey)
-      new Right(Event(EventKind.MappingStart(), token.range))
+      Event(EventKind.MappingStart(), token.range)
     } else {
       productions.prepend(ParseFlowNode)
       getNextEventImpl()
@@ -314,14 +312,14 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
       productions.prepend(ParseFlowSeqPairValue)
       productions.prepend(ParseFlowNode)
       getNextEventImpl()
-    } else new Left(ParseError.from(TokenKind.MappingKey, token))
+    } else throw ParseError.from(TokenKind.MappingKey, token)
 
   private def parseFlowPairValue(token: Token) =
     if (token.kind eq TokenKind.MappingValue) {
       in.popToken()
       productions.prepend(ParseFlowNode)
       getNextEventImpl()
-    } else new Left(ParseError.from(TokenKind.MappingValue, token))
+    } else throw ParseError.from(TokenKind.MappingValue, token)
 
   private def parseFlowSeqComma(token: Token) = {
     if (token.kind eq TokenKind.Comma) {
@@ -332,21 +330,20 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   }
 
   private def parseScalar(token: Token) =
-    parseNodeAttributes(Right(token)).flatMap { case (metadata, nextToken) =>
-      nextToken.kind match {
-        case TokenKind.Scalar(value, style) =>
-          in.popToken()
-          new Right(Event(EventKind.Scalar(value, style, metadata), token.range))
-        case TokenKind.Alias(alias) =>
-          if (metadata.anchor.isDefined) {
-            new Left(ParseError.from("Alias cannot have an anchor", nextToken))
-          } else {
+    parseNodeAttributes(token) match {
+      case (metadata, nextToken) =>
+        nextToken.kind match {
+          case TokenKind.Scalar(value, style) =>
             in.popToken()
-            new Right(Event(EventKind.Alias(Anchor(alias)), nextToken.range))
-          }
-        case _ =>
-          new Left(ParseError.from(TokenKind.Scalar.toString, token))
-      }
+            Event(EventKind.Scalar(value, style, metadata), token.range)
+          case TokenKind.Alias(alias) =>
+            if (metadata.anchor.isEmpty) {
+              in.popToken()
+              Event(EventKind.Alias(Anchor(alias)), nextToken.range)
+            } else throw ParseError.from("Alias cannot have an anchor", nextToken)
+          case _ =>
+            throw ParseError.from(TokenKind.Scalar.toString, token)
+        }
     }
 
   private def parseFlowNode(token: Token) =
@@ -355,114 +352,107 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private def parseNode(
       token: Token,
       couldParseBlockCollection: Boolean = true
-  ): Either[YamlError, Event] = parseNodeAttributes(new Right(token)) match {
-    case Right((metadata, nextToken)) =>
-      nextToken.kind match {
-        case a: TokenKind.Alias =>
-          if (metadata.anchor.isEmpty) {
-            in.popToken()
-            new Right(Event(EventKind.Alias(Anchor(a.value)), nextToken.range))
-          } else new Left(ParseError.from("Alias cannot have an anchor", nextToken))
-        case _: TokenKind.MappingStart.type if couldParseBlockCollection =>
+  ): Event = {
+    val (metadata, nextToken) = parseNodeAttributes(token)
+    nextToken.kind match {
+      case a: TokenKind.Alias =>
+        if (metadata.anchor.isEmpty) {
           in.popToken()
-          productions.prepend(ParseMappingEnd)
-          productions.prepend(ParseMappingEntry)
-          new Right(Event(EventKind.MappingStart(metadata), nextToken.range))
-        case _: TokenKind.SequenceStart.type if couldParseBlockCollection =>
-          in.popToken()
-          productions.prepend(ParseSequenceEnd)
-          productions.prepend(ParseSequenceEntry)
-          new Right(Event(EventKind.SequenceStart(metadata), nextToken.range))
-        case _: TokenKind.FlowMappingStart.type =>
-          in.popToken()
-          productions.prepend(ParseFlowMappingEnd)
-          productions.prepend(ParseFlowMappingEntryOpt)
-          new Right(Event(EventKind.MappingStart(metadata), nextToken.range))
-        case _: TokenKind.FlowSequenceStart.type =>
-          in.popToken()
-          productions.prepend(ParseFlowSeqEnd)
-          productions.prepend(ParseFlowSeqEntryOpt)
-          new Right(Event(EventKind.SequenceStart(metadata), nextToken.range))
-        case s: TokenKind.Scalar =>
-          in.popToken()
-          new Right(Event(EventKind.Scalar(s.value, s.scalarStyle, metadata), nextToken.range))
-        case _ =>
-          new Right(
-            Event(
-              EventKind.Scalar("", ScalarStyle.Plain, metadata.withTag(Tag.nullTag)),
-              nextToken.range
-            )
-          )
-      }
-    case err => err.asInstanceOf[Either[YamlError, Event]]
+          Event(EventKind.Alias(Anchor(a.value)), nextToken.range)
+        } else throw ParseError.from("Alias cannot have an anchor", nextToken)
+      case _: TokenKind.MappingStart.type if couldParseBlockCollection =>
+        in.popToken()
+        productions.prepend(ParseMappingEnd)
+        productions.prepend(ParseMappingEntry)
+        Event(EventKind.MappingStart(metadata), nextToken.range)
+      case _: TokenKind.SequenceStart.type if couldParseBlockCollection =>
+        in.popToken()
+        productions.prepend(ParseSequenceEnd)
+        productions.prepend(ParseSequenceEntry)
+        Event(EventKind.SequenceStart(metadata), nextToken.range)
+      case _: TokenKind.FlowMappingStart.type =>
+        in.popToken()
+        productions.prepend(ParseFlowMappingEnd)
+        productions.prepend(ParseFlowMappingEntryOpt)
+        Event(EventKind.MappingStart(metadata), nextToken.range)
+      case _: TokenKind.FlowSequenceStart.type =>
+        in.popToken()
+        productions.prepend(ParseFlowSeqEnd)
+        productions.prepend(ParseFlowSeqEntryOpt)
+        Event(EventKind.SequenceStart(metadata), nextToken.range)
+      case s: TokenKind.Scalar =>
+        in.popToken()
+        Event(EventKind.Scalar(s.value, s.scalarStyle, metadata), nextToken.range)
+      case _ =>
+        Event(
+          EventKind.Scalar("", ScalarStyle.Plain, metadata.withTag(Tag.nullTag)),
+          nextToken.range
+        )
+    }
   }
 
+  @tailrec
   private def parseNodeAttributes(
-      tokenE: Either[YamlError, Token],
+      token: Token,
       metadata: NodeEventMetadata = NodeEventMetadata.empty
-  ): Either[YamlError, (NodeEventMetadata, Token)] = tokenE match {
-    case Right(token) =>
-      token.kind match {
-        case a: TokenKind.Anchor =>
-          in.popToken()
-          parseNodeAttributes(in.peekToken(), metadata.withAnchor(new Anchor(a.value)))
-        case t: TokenKind.Tag =>
-          in.popToken()
-          t.value match {
-            case _: TagValue.NonSpecific.type =>
-              parseNodeAttributes(in.peekToken(), metadata)
-            case v: TagValue.Verbatim =>
-              parseNodeAttributes(in.peekToken(), metadata.withTag(new CustomTag(v.value)))
-            case s: TagValue.Shorthand =>
-              val handleKey = s.handle.value
-              directives.get(handleKey) match {
-                case Some(prefix) =>
-                  val tagValue = prefix + s.rest
-                  val tag =
-                    if (Tag.coreSchemaValues.contains(tagValue)) new CoreSchemaTag(tagValue)
-                    else new CustomTag(tagValue)
-                  parseNodeAttributes(in.peekToken(), metadata.withTag(tag))
-                case _ =>
-                  new Left(ParseError.NoRegisteredTagDirective(handleKey, token))
-              }
+  ): (NodeEventMetadata, Token) = token.kind match {
+    case a: TokenKind.Anchor =>
+      in.popToken()
+      parseNodeAttributes(in.peekTokenUnsafe(), metadata.withAnchor(new Anchor(a.value)))
+    case t: TokenKind.Tag =>
+      in.popToken()
+      t.value match {
+        case _: TagValue.NonSpecific.type =>
+          parseNodeAttributes(in.peekTokenUnsafe(), metadata)
+        case v: TagValue.Verbatim =>
+          parseNodeAttributes(in.peekTokenUnsafe(), metadata.withTag(new CustomTag(v.value)))
+        case s: TagValue.Shorthand =>
+          val handleKey = s.handle.value
+          directives.get(handleKey) match {
+            case Some(prefix) =>
+              val tagValue = prefix + s.rest
+              val tag =
+                if (Tag.coreSchemaValues.contains(tagValue)) new CoreSchemaTag(tagValue)
+                else new CustomTag(tagValue)
+              parseNodeAttributes(in.peekTokenUnsafe(), metadata.withTag(tag))
+            case _ =>
+              throw ParseError.NoRegisteredTagDirective(handleKey, token)
           }
-        case _ => Right(metadata, token)
       }
-    case err => err.asInstanceOf[Either[YamlError, (NodeEventMetadata, Token)]]
+    case _ => (metadata, token)
   }
 
-  private def getNextEventImpl(): Either[YamlError, Event] = in.peekToken() match {
-    case Right(token) =>
-      val p = productions.removeHead()
-      if (p eq ParseStreamStart) parseStreamStart(token)
-      else if (p eq ParseStreamEnd) new Right(Event(EventKind.StreamEnd, token.range))
-      else if (p eq ParseDocumentStart) parseDocumentStart(token)
-      else if (p eq ParseDocumentEnd) parseDocumentEnd(token)
-      else if (p eq ParseDocumentStartOpt) parseDocumentStartOpt(token)
-      else if (p eq ParseNode) parseNode(token)
-      else if (p eq ParseScalar) parseScalar(token)
-      else if (p eq ParseMappingEnd) parseMappingEnd(token)
-      else if (p eq ParseMappingEntry) parseMappingEntry(token)
-      else if (p eq ParseMappingValue) parseMappingValue(token)
-      else if (p eq ParseMappingValueNode) parseMappingValueNode(token)
-      else if (p eq ParseMappingSequenceEnd) parseMappingSequenceEnd(token)
-      else if (p eq ParseMappingEntryOpt) parseMappingEntryOpt(token)
-      else if (p eq ParseSequenceEnd) parseSequenceEnd(token)
-      else if (p eq ParseSequenceEntry) parseSequenceEntry(token)
-      else if (p eq ParseSequenceEntryOpt) parseSequenceEntryOpt(token)
-      else if (p eq ParseFlowNode) parseFlowNode(token)
-      else if (p eq ParseFlowMappingEnd) parseFlowMappingEnd(token)
-      else if (p eq ParseFlowMappingEntry) parseFlowMappingEntry(token)
-      else if (p eq ParseFlowMappingEntryOpt) parseFlowMappingEntryOpt(token)
-      else if (p eq ParseFlowMappingComma) parseFlowMappingComma(token)
-      else if (p eq ParseFlowSeqEnd) parseFlowSeqEnd(token)
-      else if (p eq ParseFlowSeqEntry) parseFlowSeqEntry(token)
-      else if (p eq ParseFlowSeqEntryOpt) parseFlowSeqEntryOpt(token)
-      else if (p eq ParseFlowSeqComma) parseFlowSeqComma(token)
-      else if (p eq ParseFlowSeqPairKey) parseFlowPairKey(token)
-      else if (p eq ParseFlowSeqPairValue) parseFlowPairValue(token)
-      else new Right(p.asInstanceOf[ReturnEvent].produceEvent(token))
-    case err => err.asInstanceOf[Either[YamlError, Event]]
+  private def getNextEventImpl(): Event = {
+    val token = in.peekTokenUnsafe()
+    val p     = productions.removeHead()
+    if (p eq ParseStreamStart) parseStreamStart(token)
+    else if (p eq ParseStreamEnd) Event(EventKind.StreamEnd, token.range)
+    else if (p eq ParseDocumentStart) parseDocumentStart(token)
+    else if (p eq ParseDocumentEnd) parseDocumentEnd(token)
+    else if (p eq ParseDocumentStartOpt) parseDocumentStartOpt(token)
+    else if (p eq ParseNode) parseNode(token)
+    else if (p eq ParseScalar) parseScalar(token)
+    else if (p eq ParseMappingEnd) parseMappingEnd(token)
+    else if (p eq ParseMappingEntry) parseMappingEntry(token)
+    else if (p eq ParseMappingValue) parseMappingValue(token)
+    else if (p eq ParseMappingValueNode) parseMappingValueNode(token)
+    else if (p eq ParseMappingSequenceEnd) parseMappingSequenceEnd(token)
+    else if (p eq ParseMappingEntryOpt) parseMappingEntryOpt(token)
+    else if (p eq ParseSequenceEnd) parseSequenceEnd(token)
+    else if (p eq ParseSequenceEntry) parseSequenceEntry(token)
+    else if (p eq ParseSequenceEntryOpt) parseSequenceEntryOpt(token)
+    else if (p eq ParseFlowNode) parseFlowNode(token)
+    else if (p eq ParseFlowMappingEnd) parseFlowMappingEnd(token)
+    else if (p eq ParseFlowMappingEntry) parseFlowMappingEntry(token)
+    else if (p eq ParseFlowMappingEntryOpt) parseFlowMappingEntryOpt(token)
+    else if (p eq ParseFlowMappingComma) parseFlowMappingComma(token)
+    else if (p eq ParseFlowSeqEnd) parseFlowSeqEnd(token)
+    else if (p eq ParseFlowSeqEntry) parseFlowSeqEntry(token)
+    else if (p eq ParseFlowSeqEntryOpt) parseFlowSeqEntryOpt(token)
+    else if (p eq ParseFlowSeqComma) parseFlowSeqComma(token)
+    else if (p eq ParseFlowSeqPairKey) parseFlowPairKey(token)
+    else if (p eq ParseFlowSeqPairValue) parseFlowPairValue(token)
+    else p.asInstanceOf[ReturnEvent].produceEvent(token)
   }
 }
 

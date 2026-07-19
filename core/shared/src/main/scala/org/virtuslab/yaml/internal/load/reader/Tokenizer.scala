@@ -17,6 +17,12 @@ import scala.collection.mutable
 
 trait Tokenizer {
   def peekToken(): Either[YamlError, Token]
+
+  /**
+   * Peek a token or throw a ScannerError
+   * @return a token
+   */
+  def peekTokenUnsafe(): Token
   def popToken(): Token
 }
 
@@ -38,6 +44,12 @@ private class StringTokenizer(str: String) extends Tokenizer {
       }
     }
     new Right(tokens.apply(0))
+  }
+
+  override def peekTokenUnsafe(): Token = {
+    val tokens = ctx.tokens
+    while (tokens.isEmpty) appendNextTokens(tokens)
+    tokens.apply(0)
   }
 
   override def popToken(): Token = ctx.tokens.removeHead()
