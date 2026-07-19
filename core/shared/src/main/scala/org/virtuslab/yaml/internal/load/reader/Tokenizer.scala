@@ -467,21 +467,61 @@ private class StringTokenizer(str: String) extends Tokenizer {
         queue.append(Token(MappingKey, in.range))
         queue.appendAll(potentialKeys)
         queue.append(mappingValueToken)
-      case _ => queue.appendAll(parsePlainScalar())
+      case _ =>
+        val sb = new java.lang.StringBuilder
+
+        @tailrec
+        def readScalar(): String = {
+          val c = in.peek()
+          if (
+            c == Reader.nullTerminator ||
+            c == ':' && in.isNextWhitespace ||
+            c == ':' && in.peekNext() == ',' && ctx.isInFlowCollection ||
+            c == ' ' && in.peekNext() == '#' ||
+            c == '.' && isDocumentEnd && ctx.indent == -1 ||
+            c == '-' && isDocumentStart && ctx.indent == -1 ||
+            !ctx.isAllowedSpecialCharacter(c)
+          ) sb.toString
+          else if (c == '\n' || c == '\r' && in.peekNext() == '\n') {
+            ctx.isPlainKeyAllowed = true
+            if (in.isNextNewline) {
+              while (in.isNextNewline) {
+                in.skipCharacter()
+                sb.append('\n')
+              }
+            } else sb.append(' ')
+            skipUntilNextToken()
+            if (in.column > ctx.indent) readScalar()
+            else sb.toString
+          } else {
+            in.skipCharacter()
+            sb.append(c)
+            readScalar()
+          }
+        }
+
+        val isPlainKeyAllowed = ctx.isPlainKeyAllowed
+        val range             = in.range
+        val scalar            = readScalar()
+        val endRange          = range.withEndPos(in.pos)
+        val scalarToken       = Token(Scalar(scalar.trim, ScalarStyle.Plain), endRange)
+        if (isPlainKeyAllowed) ctx.addPotentialKey(scalarToken)
+        else queue.append(scalarToken)
     }
   }
 
   private def isDocumentStart = {
-    val charAfterMarker = in.peek(3)
-    in.peekN(3) == "---" &&
-    (charAfterMarker.isWhitespace || charAfterMarker == Reader.nullTerminator)
+    val c1 = in.peek(1)
+    val c2 = in.peek(2)
+    val c3 = in.peek(3)
+    c1 == '-' && c2 == '-' && (c3.isWhitespace || c3 == Reader.nullTerminator)
   }
 
   private def isDocumentEnd = {
-    val charAfterMarker = in.peek(3)
-    in.peekN(
-      3
-    ) == "..." && (charAfterMarker.isWhitespace || charAfterMarker == Reader.nullTerminator)
+    val c1 = in.peek(1)
+    val c2 = in.peek(2)
+    val c3 = in.peek(3)
+    c1 == '.' && c2 == '.' && (c3.isWhitespace || c3 == Reader.nullTerminator)
   }
 
   private def parseAnchorName(): (String, Range) = {
@@ -538,49 +578,6 @@ private class StringTokenizer(str: String) extends Tokenizer {
         Some(number.asDigit)
       case _ => None
     }
-
-  private def parsePlainScalar(): List[Token] = {
-    val sb = new java.lang.StringBuilder
-
-    def chompedEmptyLines() =
-      while (in.isNextNewline) {
-        in.skipCharacter()
-        sb.append('\n')
-      }
-
-    def readScalar(): String = {
-      val peeked = in.peek()
-      peeked match {
-        case Reader.nullTerminator                                       => sb.toString
-        case ':' if in.isNextWhitespace                                  => sb.toString
-        case ':' if in.peekNext() == ',' && ctx.isInFlowCollection       => sb.toString
-        case char if !ctx.isAllowedSpecialCharacter(char)                => sb.toString
-        case _ if (isDocumentEnd || isDocumentStart) && ctx.indent == -1 => sb.toString
-        case ' ' if in.peekNext() == '#'                                 => sb.toString
-        case _ if in.isNewline =>
-          ctx.isPlainKeyAllowed = true
-          if (in.isNextNewline) chompedEmptyLines()
-          else sb.append(' ')
-          skipUntilNextToken()
-          if (in.column > ctx.indent)
-            readScalar()
-          else sb.toString
-        case _ =>
-          sb.append(in.read())
-          readScalar()
-      }
-    }
-
-    val isPlainKeyAllowed = ctx.isPlainKeyAllowed
-    val range             = in.range
-    val scalar            = readScalar()
-    val endRange          = range.withEndPos(in.pos)
-    val scalarToken       = Token(Scalar(scalar.trim, ScalarStyle.Plain), endRange)
-    if (isPlainKeyAllowed) {
-      ctx.addPotentialKey(scalarToken)
-      Nil
-    } else List(scalarToken)
-  }
 
   def skipUntilNextToken(): Unit = {
     while (in.isWhitespace && !in.isNewline) in.skipCharacter()
