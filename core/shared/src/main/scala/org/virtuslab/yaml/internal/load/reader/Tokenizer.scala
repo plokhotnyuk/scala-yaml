@@ -29,22 +29,18 @@ private class StringTokenizer(str: String) extends Tokenizer {
   private val ctx = TokenizerContext(str)
   private val in  = ctx.reader
 
-  override def peekToken(): Either[YamlError, Token] = new Right({
+  override def peekToken(): Either[YamlError, Token] = {
     val tokens = ctx.tokens
-    if (tokens.isEmpty) {
-      try getToken()
+    while (tokens.isEmpty) {
+      try appendNextTokens(tokens)
       catch {
         case e: ScannerError => return new Left(e)
       }
-    } else tokens.apply(0)
-  })
+    }
+    new Right(tokens.apply(0))
+  }
 
   override def popToken(): Token = ctx.tokens.removeHead()
-
-  private def getToken(): Token = {
-    while (ctx.needMoreTokens()) appendNextTokens(ctx.tokens)
-    ctx.tokens.head
-  }
 
   /**
   * Plain keys have to be resolved in the same line they were created, otherwise they are ordinary tokens.

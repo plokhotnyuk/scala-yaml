@@ -21,7 +21,7 @@ object Event {
   val streamStart = Event(StreamStart, None)
   val streamEnd   = Event(StreamEnd, None)
 
-  def apply(kind: EventKind, pos: Range): Event = Event(kind, Some(pos))
+  def apply(kind: EventKind, pos: Range): Event = Event(kind, new Some(pos))
 }
 
 sealed abstract class EventKind
