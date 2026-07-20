@@ -10,7 +10,7 @@ import org.virtuslab.yaml.internal.load.TagValue
 /**
  * An ADT representing a decoding failure.
  */
-sealed abstract class YamlError(val msg: String) extends Exception(msg)
+sealed abstract class YamlError(val msg: String) extends Exception(msg) with NoStackTrace
 
 sealed abstract class ParseError(override val msg: String) extends YamlError(msg)
 object ParseError {
@@ -74,9 +74,7 @@ object ConstructError {
   def from(t: Throwable): ConstructError = from(t.getMessage, None, None)
 }
 
-sealed abstract class ScannerError(override val msg: String)
-    extends YamlError(msg)
-    with NoStackTrace
+sealed abstract class ScannerError(override val msg: String) extends YamlError(msg)
 object ScannerError {
   def from(obtained: String, got: Token): ScannerError = Obtained(obtained, got)
 

@@ -1,8 +1,6 @@
 package org.virtuslab.yaml.internal.load.reader
 
 import scala.annotation.tailrec
-import scala.util.Try
-
 import org.virtuslab.yaml.Position
 import org.virtuslab.yaml.Range
 
@@ -27,9 +25,9 @@ trait Reader {
   def skipCharacter(): Unit
   def skipN(n: Int): Unit
   def skipWhitespaces(): Unit
+  def peekN(n: Int): String
 
   final def peekNext(): Char          = peek(1)
-  final def peekN(n: Int): String     = (0 until n).map(peek(_)).mkString("")
   final def isWhitespace: Boolean     = peek().isWhitespace
   final def isNextWhitespace: Boolean = peekNext().isWhitespace
   final def isNewline: Boolean        = isNewlineN(0)
@@ -47,6 +45,7 @@ object Reader {
 }
 
 private[yaml] class StringReader(in: String) extends Reader {
+  private val len = in.length
   var line: Int   = 0
   var column: Int = 0
   var offset: Int = 0
@@ -55,12 +54,26 @@ private[yaml] class StringReader(in: String) extends Reader {
   override def pos   = Position(offset, line, column)
   override def range = Range(pos, lines)
 
-  override def peek(n: Int = 0): Char =
-    if (offset + n < in.length) in.charAt(offset + n)
+  override def peek(n: Int = 0): Char = {
+    val i = offset + n
+    if (i < len) in.charAt(i)
     else Reader.nullTerminator
+  }
 
-  private def nextLine() = { column = 0; line += 1 }
-  private def skipAndMantainPosition() = {
+  override def peekN(n: Int): String = {
+    val end = offset + n
+    if (end <= len) in.substring(offset, end)
+    else {
+      val available = math.max(0, len - offset)
+      val padding   = new String(Array.fill(n - available)(Reader.nullTerminator))
+      if (available > 0) in.substring(offset, len) + padding
+      else padding
+    }
+  }
+
+  private def nextLine(): Unit = { column = 0; line += 1 }
+
+  private def skipAndMaintainPosition() = {
     val char = in.charAt(offset)
     if (isWindowsNewline(char)) {
       offset += 2
@@ -81,13 +94,13 @@ private[yaml] class StringReader(in: String) extends Reader {
     @tailrec def loop(left: Int): Unit =
       if (left <= 0) ()
       else {
-        val skipped = skipAndMantainPosition()
+        val skipped = skipAndMaintainPosition()
         loop(left - skipped)
       }
     loop(n)
   }
 
-  override def skipCharacter(): Unit = skipAndMantainPosition()
+  override def skipCharacter(): Unit = skipAndMaintainPosition()
 
   override def skipWhitespaces(): Unit =
     while (isWhitespace)
