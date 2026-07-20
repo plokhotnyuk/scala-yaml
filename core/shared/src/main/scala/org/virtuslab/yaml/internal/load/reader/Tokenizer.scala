@@ -144,8 +144,11 @@ private class StringTokenizer(str: String) extends Tokenizer {
           val c = in.peek()
           if (c == '[' || c == ']' || c == '{' || c == '}')
             throw ScannerError.from(in.range, "Invalid character in tag")
-          UrlDecoder.decode(sb.toString)
-        }
+          try UrlDecoder.decode(sb.toString)
+          catch {
+            case _: IllegalArgumentException =>
+              throw ScannerError.from(in.range, "Invalid percent-encoding in tag")
+          }
 
         def parseShorthandTag(second: Char): TagValue =
           second match {
