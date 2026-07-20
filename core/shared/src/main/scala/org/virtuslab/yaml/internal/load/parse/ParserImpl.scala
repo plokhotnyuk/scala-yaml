@@ -252,23 +252,24 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
     getNextEventImpl()
   }
 
-  private def parseFlowMappingEntryOpt(token: Token) = token.kind match {
-    case _: TokenKind.Scalar | _: TokenKind.Anchor =>
-      productions.prepend(ParseFlowMappingEntry)
-      productions.prepend(ParseFlowMappingComma)
-      productions.prepend(ParseFlowNode)
-      parseFlowNode(token)
-    case k =>
-      if (k eq TokenKind.MappingKey) { // flow mapping start right after flow mapping start{>>{
+  private def parseFlowMappingEntryOpt(token: Token) =
+    token.kind match {
+      case _: TokenKind.Scalar | _: TokenKind.Anchor =>
         productions.prepend(ParseFlowMappingEntry)
-      } else if (
-        (k eq TokenKind.FlowMappingStart) || // flow sequence start right after flow mapping start{>>[
-        (k eq TokenKind.FlowSequenceStart)
-      ) {
+        productions.prepend(ParseFlowMappingComma)
         productions.prepend(ParseFlowNode)
-      }
-      getNextEventImpl()
-  }
+        parseFlowNode(token)
+      case k =>
+        if (k eq TokenKind.MappingKey) { // flow mapping start right after flow mapping start{>>{
+          productions.prepend(ParseFlowMappingEntry)
+        } else if (
+          (k eq TokenKind.FlowMappingStart) || // flow sequence start right after flow mapping start{>>[
+          (k eq TokenKind.FlowSequenceStart)
+        ) {
+          productions.prepend(ParseFlowNode)
+        }
+        getNextEventImpl()
+    }
 
   private def parseFlowMappingComma(token: Token) = {
     if (token.kind eq TokenKind.Comma) {
