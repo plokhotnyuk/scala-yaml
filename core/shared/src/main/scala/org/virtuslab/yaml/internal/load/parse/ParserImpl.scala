@@ -104,7 +104,7 @@ final class ParserImpl private (in: Tokenizer) extends Parser {
   private val defaultDirectives = Map("!" -> "!", "!!" -> "tag:yaml.org,2002:")
   private val directives        = defaultDirectives.to(mutable.Map)
 
-  private[yaml] def getEvents(): Either[YamlError, List[Event]] =
+  def getEvents(): Either[YamlError, List[Event]] =
     try {
       val events = new mutable.ListBuffer[Event]
       while (productions.length > 0) events.append(getNextEventImpl())
