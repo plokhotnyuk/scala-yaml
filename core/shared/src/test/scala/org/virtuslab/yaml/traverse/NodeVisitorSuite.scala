@@ -27,7 +27,7 @@ class NodeVisitorSuite extends munit.FunSuite {
     val modifiedYaml = modifiedNode.asYaml
 
     val exptectedYaml =
-      s"""version: 3.9
+      s"""version: "3.9"
          |services: 
          |  web: 
          |    build: .
@@ -71,7 +71,7 @@ class NodeVisitorSuite extends munit.FunSuite {
     val modifiedYaml = modifiedNode.asYaml
 
     val exptectedYaml =
-      s"""version: 3.9
+      s"""version: "3.9"
          |services: 
          |  web: 
          |    build: .
@@ -115,7 +115,7 @@ class NodeVisitorSuite extends munit.FunSuite {
     val modifiedYaml = modifiedNode.asYaml
 
     val exptectedYaml =
-      s"""version: 3.9
+      s"""version: "3.9"
          |services: 
          |  web: 
          |    build: .
