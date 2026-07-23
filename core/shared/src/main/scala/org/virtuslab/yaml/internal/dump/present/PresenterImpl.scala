@@ -99,7 +99,7 @@ object PresenterImpl extends Presenter {
       val value = s.value
       val style = s.style
       val tag   = s.metadata.tag
-      if (tag.contains(Tag.str)) {
+      if (tag.isEmpty || tag.contains(Tag.str)) {
         if (
           (style eq ScalarStyle.DoubleQuoted) || (style eq ScalarStyle.Literal) ||
           (style eq ScalarStyle.Folded) || requiresDoubleQuoting(value)
