@@ -56,7 +56,7 @@ class YamlEncoderSpec extends munit.FunSuite {
       case Bar(price: Double)
     }
 
-    val data = SomeEnum.Foo(1)
+    val data     = SomeEnum.Foo(1)
     val expected = "value: 1"
     assertEquals(data.asYaml.trim, expected)
   }

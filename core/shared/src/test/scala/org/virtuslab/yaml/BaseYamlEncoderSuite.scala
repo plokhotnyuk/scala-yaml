@@ -28,16 +28,31 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
   }
   test("strings requiring double quoting - special prefix/suffix & edge cases") {
     val data = Seq(
-      "", // length 0
-      "-", // length 1
-      "?", // length 1
-      ":", // length 1
+      "",   // length 0
+      "-",  // length 1
+      "?",  // length 1
+      ":",  // length 1
       "- ", // starts with - and space
       "? ", // starts with ? and space
       ": ", // starts with : and space
       " a", // starts with whitespace
       "a ", // ends with whitespace
-      ",a", "[a", "]a", "{a", "}a", "#a", "&a", "*a", "!a", "|a", ">a", "'a", "\"a", "%a", "@a", "`a"
+      ",a",
+      "[a",
+      "]a",
+      "{a",
+      "}a",
+      "#a",
+      "&a",
+      "*a",
+      "!a",
+      "|a",
+      ">a",
+      "'a",
+      "\"a",
+      "%a",
+      "@a",
+      "`a"
     )
     val expected =
       s"""- ""
@@ -71,13 +86,13 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
 
   test("strings requiring double quoting - special substrings & control characters") {
     val data = Seq(
-      " a", // starts from " "
-      "a:", // trailing colon
-      "true ", // trailing whitespace
-      "a: b", // contains ": "
-      "a # b", // contains " #"
+      " a",       // starts from " "
+      "a:",       // trailing colon
+      "true ",    // trailing whitespace
+      "a: b",     // contains ": "
+      "a # b",    // contains " #"
       "a\u001fb", // contains c < 32
-      "a\u007fb" // contains c == 127
+      "a\u007fb"  // contains c == 127
     )
     val expected =
       s"""- " a"
@@ -93,13 +108,26 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
 
   test("strings requiring double quoting - yaml patterns (booleans, numbers, nulls)") {
     val data = Seq(
-      "null", "Null", "~",
-      "false", "False", "true", "True",
-      "-1", "-1.1", "-.inf",
-      "+1", "+1.1", "+.inf",
-      "0", "0o7", "0x1A",
-      "123", "1.23",
-      ".NaN", ".inf"
+      "null",
+      "Null",
+      "~",
+      "false",
+      "False",
+      "true",
+      "True",
+      "-1",
+      "-1.1",
+      "-.inf",
+      "+1",
+      "+1.1",
+      "+.inf",
+      "0",
+      "0o7",
+      "0x1A",
+      "123",
+      "1.23",
+      ".NaN",
+      ".inf"
     )
     val expected =
       s"""- "null"
@@ -145,7 +173,6 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
          |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
-
 
   test("sequence of sequences") {
     val data = Seq(Seq(1, 2), Seq(3, 4))

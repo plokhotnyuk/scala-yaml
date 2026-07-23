@@ -9,8 +9,8 @@ import org.virtuslab.yaml.syntax.YamlPrimitive
 class NodeCreationSuite extends munit.FunSuite {
   test("mapping node") {
     val node = MappingNode(
-      "hr" -> "65",
-      "avg" -> "0.278",
+      "hr"   -> "65",
+      "avg"  -> "0.278",
       "blob" -> "nostradamus"
     )
     assertEquals(

@@ -10,10 +10,10 @@ class PresenterBugsSuite extends munit.FunSuite {
   private val nl = System.lineSeparator()
 
   private def presentScalar(
-                             value: String,
-                             tag: Tag = Tag.str,
-                             style: ScalarStyle = ScalarStyle.Plain
-                           ): String =
+      value: String,
+      tag: Tag = Tag.str,
+      style: ScalarStyle = ScalarStyle.Plain
+  ): String =
     PresenterImpl.asString(
       Seq(
         DocumentStart(),
@@ -113,7 +113,7 @@ class PresenterBugsSuite extends munit.FunSuite {
 
   test("bug4: non-singleton null tag must still trigger null rendering") {
     val nonSingletonNull = CoreSchemaTag("tag:yaml.org,2002:null")
-    val result = presentScalar("", tag = nonSingletonNull)
+    val result           = presentScalar("", tag = nonSingletonNull)
     assert(
       result.contains("!!null"),
       s"Expected empty string with non-singleton null tag to render as !!null, but got: $result"
@@ -259,7 +259,7 @@ class PresenterBugsSuite extends munit.FunSuite {
   // -----------------------------------------------------------------------
 
   test("roundtrip: string 'null' must survive encode-decode as string") {
-    val yaml = "null".asYaml
+    val yaml   = "null".asYaml
     val parsed = yaml.as[String]
     parsed match {
       case Right(value) =>
