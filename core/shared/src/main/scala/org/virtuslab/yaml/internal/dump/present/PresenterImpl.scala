@@ -160,17 +160,14 @@ object PresenterImpl extends Presenter {
             '@' | '`' =>
           return true
         case _ =>
-          if (c < 32 || c == 127 || Character.isWhitespace(c)) return true
+          if (isCharNonPrintable(c) || Character.isWhitespace(c)) return true
       }
       var prev = c
       var i    = 1
       while (i < len) {
         c = s.charAt(i)
         i += 1
-        if (
-          c < 32 || c == 127 ||
-          prev == ':' && c == ' ' || prev == ' ' && c == '#'
-        ) return true
+        if (isCharNonPrintable(c) || prev == ':' && c == ' ' || prev == ' ' && c == '#') return true
         prev = c
       }
       false
@@ -191,7 +188,7 @@ object PresenterImpl extends Presenter {
           case '\b' => sb.append("\\b")
           case '\f' => sb.append("\\f")
           case _ =>
-            if (c < 32 || c == 127) {
+            if (isCharNonPrintable(c)) {
               sb.append("\\u")
               sb.append(Character.forDigit((c >> 12) & 0xf, 16))
               sb.append(Character.forDigit((c >> 8) & 0xf, 16))
@@ -216,6 +213,13 @@ object PresenterImpl extends Presenter {
       }
       sb.append('\'')
     }
+
+    def isCharNonPrintable(c: Char): Boolean =
+      c <= '\u001F' && c != '\u0009' && c != '\u000A' && c != '\u000D' || // C0 control block (except allowed exceptions)
+      c == '\u007F' ||
+      c >= '\u0080' && c <= '\u009F' && c != '\u0085' || // C1 control block (except for NEL \u0085)
+      c >= '\uD800' && c <= '\uDFFF' || // Surrogate block
+      c == '\uFFFE' || c == '\uFFFF'
 
     serializeNode(events.toList)
     sb.toString

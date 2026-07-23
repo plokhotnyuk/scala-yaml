@@ -85,8 +85,8 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
          |- "true "
          |- "a: b"
          |- "a # b"
-         |- "a\\u001Fb"
-         |- "a\\u007Fb"
+         |- "a\\u001fb"
+         |- "a\\u007fb"
          |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
@@ -181,7 +181,12 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
 
   test("encoding of non-printable characters") {
     // yaml ends with newline
-    assertEquals(Char.MinValue.toString.asYaml, "\\u0000\n")
-    assertEquals(Char.MaxValue.toString.asYaml, "\\uFFFF\n")
+    assertEquals(Char.MinValue.toString.asYaml, "\"\\u0000\"\n")
+    assertEquals('\u001f'.toString.asYaml, "\"\\u001f\"\n")
+    assertEquals('\u0080'.toString.asYaml, "\"\\u0080\"\n")
+    assertEquals('\u009f'.toString.asYaml, "\"\\u009f\"\n")
+    assertEquals('\uD800'.toString.asYaml, "\"\\ud800\"\n")
+    assertEquals('\uDFFF'.toString.asYaml, "\"\\udfff\"\n")
+    assertEquals(Char.MaxValue.toString.asYaml, "\"\\uffff\"\n")
   }
 }

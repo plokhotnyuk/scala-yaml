@@ -44,7 +44,7 @@ object YamlEncoder extends YamlEncoderCrossCompanionCompat {
   implicit def forFloat: YamlEncoder[Float]     = v => Node.ScalarNode(v.toString)
   implicit def forDouble: YamlEncoder[Double]   = v => Node.ScalarNode(v.toString)
   implicit def forBoolean: YamlEncoder[Boolean] = v => Node.ScalarNode(v.toString)
-  implicit def forString: YamlEncoder[String]   = v => Node.ScalarNode(escapeSpecialCharacters(v))
+  implicit def forString: YamlEncoder[String]   = v => Node.ScalarNode(v)
 
   implicit def forOption[T](implicit encoder: YamlEncoder[T]): YamlEncoder[Option[T]] = {
     case Some(t) => encoder.asNode(t)
