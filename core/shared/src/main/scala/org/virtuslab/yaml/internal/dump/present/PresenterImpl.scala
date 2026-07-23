@@ -56,7 +56,23 @@ object PresenterImpl extends Presenter {
             indent -= 2
             stack.pop()
             tail
-          case _ => sys.error("Cannot serialize non-scalar mapping key: " + head)
+          case _ =>
+            // Complex key (e.g. Sequence or Mapping as a key)
+            var n = indent
+            while (n > 0) {
+              sb.append(' ')
+              n -= 1
+            }
+            sb.append('?')
+            val afterKey = serializeNode(events)
+            n = indent
+            while (n > 0) {
+              sb.append(' ')
+              n -= 1
+            }
+            sb.append(':')
+            val afterValue = serializeNode(afterKey)
+            serializeMapping(afterValue)
         }
       case _ => Nil
     }
@@ -216,10 +232,10 @@ object PresenterImpl extends Presenter {
 
     def isCharNonPrintable(c: Char): Boolean =
       c <= '\u001F' && c != '\u0009' && c != '\u000A' && c != '\u000D' || // C0 control block (except allowed exceptions)
-      c == '\u007F' ||
-      c >= '\u0080' && c <= '\u009F' && c != '\u0085' || // C1 control block (except for NEL \u0085)
-      c >= '\uD800' && c <= '\uDFFF' || // Surrogate block
-      c == '\uFFFE' || c == '\uFFFF'
+        c == '\u007F' ||
+        c >= '\u0080' && c <= '\u009F' && c != '\u0085' || // C1 control block (except for NEL \u0085)
+        c >= '\uD800' && c <= '\uDFFF' || // Surrogate block
+        c == '\uFFFE' || c == '\uFFFF'
 
     serializeNode(events.toList)
     sb.toString

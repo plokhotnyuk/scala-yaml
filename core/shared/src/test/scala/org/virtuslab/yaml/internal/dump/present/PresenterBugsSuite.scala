@@ -206,28 +206,48 @@ class PresenterBugsSuite extends munit.FunSuite {
   // RuntimeException is non-compliant.
   // -----------------------------------------------------------------------
 
-  test("bug8: non-scalar mapping key should not throw") {
+  test("bug8: mapping (non-scalar) mapping key should not throw") {
     val events = Seq(
       DocumentStart(),
       MappingStart(),
       MappingStart(),
-      Scalar("nested", metadata = NodeEventMetadata(tag = Some(Tag.str))),
-      Scalar("key", metadata = NodeEventMetadata(tag = Some(Tag.str))),
+      Scalar("nestedKey", metadata = NodeEventMetadata(tag = Some(Tag.str))),
+      Scalar("nestedValue", metadata = NodeEventMetadata(tag = Some(Tag.str))),
       MappingEnd,
       Scalar("value", metadata = NodeEventMetadata(tag = Some(Tag.str))),
       MappingEnd,
       DocumentEnd()
     )
-    val result =
-      try {
-        val yaml = PresenterImpl.asString(events)
-        Right(yaml)
-      } catch {
-        case e: RuntimeException => Left(e.getMessage)
-      }
-    assert(
-      result.isRight,
-      s"Non-scalar mapping key should not throw, but got: ${result.left.getOrElse("")}"
+    val result = PresenterImpl.asString(events)
+    assertEquals(
+      result,
+      """?
+        |  nestedKey: nestedValue
+        |: value
+        |""".stripMargin
+    )
+  }
+
+  test("bug8: sequence (non-scalar) mapping key should not throw") {
+    val events = Seq(
+      DocumentStart(),
+      MappingStart(),
+      SequenceStart(),
+      Scalar("nestedValue1", metadata = NodeEventMetadata(tag = Some(Tag.str))),
+      Scalar("nestedValue2", metadata = NodeEventMetadata(tag = Some(Tag.str))),
+      SequenceEnd,
+      Scalar("value", metadata = NodeEventMetadata(tag = Some(Tag.str))),
+      MappingEnd,
+      DocumentEnd()
+    )
+    val result = PresenterImpl.asString(events)
+    assertEquals(
+      result,
+      """?
+        |  - nestedValue1
+        |  - nestedValue2
+        |: value
+        |""".stripMargin
     )
   }
 
