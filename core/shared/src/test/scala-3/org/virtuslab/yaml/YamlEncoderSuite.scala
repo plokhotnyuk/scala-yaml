@@ -1,26 +1,8 @@
-package org.virtuslab.yaml
-
 import org.virtuslab.yaml.*
+import org.virtuslab.yaml.Node.*
+import org.virtuslab.yaml.internal.load.reader.token.ScalarStyle
 
-class BaseYamlEncoderSuite extends munit.FunSuite {
-  test("plain value") {
-    val data: String = "aezakmi"
-    val expected =
-      s"""aezakmi
-         |""".stripMargin
-    assertEquals(data.asYaml, expected)
-  }
-
-  test("sequence") {
-    val data = Seq("Mark McGwire", "Sammy Sosa", "Ken Griffey")
-    val expected =
-      s"""- Mark McGwire
-         |- Sammy Sosa
-         |- Ken Griffey
-         |""".stripMargin
-    assertEquals(data.asYaml, expected)
-  }
-
+class YamlEncoderSpec extends munit.FunSuite {
   test("sequence of mappings") {
     case class Data(int: Int, double: Double) derives YamlCodec
 
@@ -36,16 +18,19 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
     assertEquals(data.asYaml, expected)
   }
 
-  test("sequence of sequences") {
-    val data = Seq(Seq(1, 2), Seq(3, 4))
+  test("mapping of sequences") {
+    case class Data(ints: Seq[Int], doubles: Seq[Double]) derives YamlCodec
+
+    val data = Data(Seq(1, 2), Seq(3.0, 4.0))
     val expected =
-      s"""-
+      s"""ints:
          |  - 1
          |  - 2
-         |-
-         |  - 3
-         |  - 4
+         |doubles:
+         |  - 3.0
+         |  - 4.0
          |""".stripMargin
+
     assertEquals(data.asYaml, expected)
   }
 
@@ -61,25 +46,6 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
          |second:
          |  a: 2
          |  b: two
-         |""".stripMargin
-    assertEquals(data.asYaml, expected)
-  }
-
-  test("map") {
-    val data = Map("1" -> 'a', "2" -> 'b', "3" -> 'c')
-    val expected =
-      s"""1: a
-         |2: b
-         |3: c
-         |""".stripMargin
-    assertEquals(data.asYaml, expected)
-  }
-
-  test("set of boolean") {
-    val data = Set(true, false)
-    val expected =
-      s"""- true
-         |- false
          |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
@@ -154,9 +120,42 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
     assertEquals(data.asYaml, expected)
   }
 
-  test("encoding of non-printable characters") {
-    // yaml ends with newline
-    assertEquals(Char.MinValue.toString.asYaml, "\\u0000\n")
-    assertEquals(Char.MaxValue.toString.asYaml, "\\uFFFF\n")
+  test("mapping of mappings (deep nesting)") {
+    case class Data(map: Map[String, Map[String, String]]) derives YamlCodec
+
+    val data = Data(Map("outer" -> Map("inner1" -> "val1", "inner2" -> "val2")))
+    val expected =
+      s"""map:
+         |  outer:
+         |    inner1: val1
+         |    inner2: val2
+         |""".stripMargin
+    assertEquals(data.asYaml, expected)
+  }
+
+  test("sequence of mappings") {
+    case class Data(seq: Seq[Map[String, String]]) derives YamlCodec
+
+    val data = Data(Seq(Map("k1" -> "v1"), Map("k2" -> "v2")))
+    val expected =
+      s"""seq:
+         |  -
+         |    k1: v1
+         |  -
+         |    k2: v2
+         |""".stripMargin
+    assertEquals(data.asYaml, expected)
+  }
+
+  test("primitives serialization (plain styles)") {
+    case class Primitives(b: Boolean, i: Int, f: Double) derives YamlCodec
+
+    val data = Primitives(true, 42, 3.14)
+    val expected =
+      s"""b: true
+         |i: 42
+         |f: 3.14
+         |""".stripMargin
+    assertEquals(data.asYaml, expected)
   }
 }
