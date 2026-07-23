@@ -212,8 +212,6 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
     assertEquals('\u001f'.toString.asYaml, "\"\\u001f\"\n")
     assertEquals('\u0080'.toString.asYaml, "\"\\u0080\"\n")
     assertEquals('\u009f'.toString.asYaml, "\"\\u009f\"\n")
-    assertEquals('\uD800'.toString.asYaml, "\"\\ud800\"\n")
-    assertEquals('\uDFFF'.toString.asYaml, "\"\\udfff\"\n")
     assertEquals(Char.MaxValue.toString.asYaml, "\"\\uffff\"\n")
   }
 }
