@@ -112,7 +112,12 @@ object PresenterImpl extends Presenter {
     def requiresDoubleQuoting(s: String): Boolean = {
       val len = s.length
       if (len == 0) return true
-      var c = s.charAt(0)
+      var c     = s.charAt(0)
+      val cLast = s.charAt(len - 1)
+      if (
+        c < 32 || c == 127 || cLast == ':' ||
+        Character.isWhitespace(c) || Character.isWhitespace(cLast)
+      ) return true
       (c: @switch) match {
         case 'n' | 'N' | '~' =>
           if (Tag.nullPattern.pattern.matcher(s).matches) return true
@@ -159,17 +164,14 @@ object PresenterImpl extends Presenter {
         case _ =>
 
       }
-      if (
-        Character.isWhitespace(c) || Character.isWhitespace(s.charAt(len - 1)) || c < 32 || c == 127
-      ) return true
       var prev = c
       var i    = 1
       while (i < len) {
         c = s.charAt(i)
         i += 1
         if (
-          prev == ':' && c == ' ' || prev == ' ' && c == '#' ||
-          c < 32 || c == 127
+          c < 32 || c == 127 ||
+          prev == ':' && c == ' ' || prev == ' ' && c == '#'
         ) return true
         prev = c
       }

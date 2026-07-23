@@ -118,7 +118,8 @@ class YamlEncoderSpec extends munit.FunSuite:
   test("strings requiring double quoting - special substrings & control characters") {
     val data = Seq(
       " a",          // starts from " "
-      "t ",          // ends with " "
+      "a:",          // trailing colon
+      "true ",       // trailing whitespace
       "a: b",        // contains ": "
       "a # b",       // contains " #"
       "a\u001fb",    // contains c < 32
@@ -127,7 +128,8 @@ class YamlEncoderSpec extends munit.FunSuite:
 
     val expected =
       s"""- " a"
-         |- "t "
+         |- "a: "
+         |- "true "
          |- "a: b"
          |- "a # b"
          |- "a\\u001fb"
