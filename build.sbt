@@ -34,7 +34,8 @@ inThisBuild(
         "kamilpodsiadlo44@gmail.com",
         url("https://github.com/kpodsiad")
       )
-    )
+    ),
+    testFrameworks += new TestFramework("munit.Framework")
   )
 )
 
