@@ -2,14 +2,12 @@ package org.virtuslab.yaml
 
 import org.virtuslab.yaml.*
 
-class YamlEncoderSuite extends munit.FunSuite:
-
+class BaseYamlEncoderSuite extends munit.FunSuite {
   test("plain value") {
     val data: String = "aezakmi"
     val expected =
       s"""aezakmi
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
@@ -20,61 +18,50 @@ class YamlEncoderSuite extends munit.FunSuite:
          |- Sammy Sosa
          |- Ken Griffey
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
   test("sequence of mappings") {
     case class Data(int: Int, double: Double) derives YamlCodec
-    val data = Seq(
-      Data(1, 1.997),
-      Data(2, 2.997)
-    )
 
+    val data = Seq(Data(1, 1.997), Data(2, 2.997))
     val expected =
-      s"""- 
+      s"""-
          |  int: 1
          |  double: 1.997
-         |- 
+         |-
          |  int: 2
          |  double: 2.997
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
   test("sequence of sequences") {
-    val data = Seq(
-      Seq(1, 2),
-      Seq(3, 4)
-    )
-
+    val data = Seq(Seq(1, 2), Seq(3, 4))
     val expected =
-      s"""- 
+      s"""-
          |  - 1
          |  - 2
-         |- 
+         |-
          |  - 3
          |  - 4
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
   test("mapping of mappings") {
     case class Nested(a: Int, b: String) derives YamlCodec
     case class Data(first: Nested, second: Nested) derives YamlCodec
-    val data = Data(Nested(1, "one"), Nested(2, "two"))
 
+    val data = Data(Nested(1, "one"), Nested(2, "two"))
     val expected =
-      s"""first: 
+      s"""first:
          |  a: 1
          |  b: one
-         |second: 
+         |second:
          |  a: 2
          |  b: two
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
@@ -85,7 +72,6 @@ class YamlEncoderSuite extends munit.FunSuite:
          |2: b
          |3: c
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
@@ -95,17 +81,17 @@ class YamlEncoderSuite extends munit.FunSuite:
       s"""- true
          |- false
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
   test("enum case") {
-    enum SomeEnum derives YamlCodec:
+    enum SomeEnum derives YamlCodec {
       case Foo(value: Int)
       case Bar(price: Double)
-    val data     = SomeEnum.Foo(1)
-    val expected = "value: 1"
+    }
 
+    val data = SomeEnum.Foo(1)
+    val expected = "value: 1"
     assertEquals(data.asYaml.trim, expected)
   }
 
@@ -115,13 +101,12 @@ class YamlEncoderSuite extends munit.FunSuite:
 
     val data = Person(Address("Anytown"), Seq(1, 2))
     val expected =
-      s"""address: 
+      s"""address:
          |  city: Anytown
-         |ints: 
+         |ints:
          |  - 1
          |  - 2
          |""".stripMargin
-
     assertEquals(data.asYaml, expected)
   }
 
@@ -130,7 +115,6 @@ class YamlEncoderSuite extends munit.FunSuite:
 
     val some = Foo(Some("some"))
     val none = Foo(None)
-
     assertNoDiff(some.asYaml, "field: some")
     assertNoDiff(none.asYaml, "field: !!null")
   }
@@ -154,19 +138,19 @@ class YamlEncoderSuite extends munit.FunSuite:
         )
       )
     )
-    val expected = """version: 3.9
-                     |services: 
-                     |  web: 
-                     |    build: .
-                     |    ports: 
-                     |      - 5000:5000
-                     |    volumes: 
-                     |      - .:/code
-                     |      - logvolume01:/var/log
-                     |  redis: 
-                     |    image: redis:alpine
-                     |""".stripMargin
-
+    val expected =
+      """version: 3.9
+        |services:
+        |  web:
+        |    build: .
+        |    ports:
+        |      - 5000:5000
+        |    volumes:
+        |      - .:/code
+        |      - logvolume01:/var/log
+        |  redis:
+        |    image: redis:alpine
+        |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
 
@@ -175,3 +159,4 @@ class YamlEncoderSuite extends munit.FunSuite:
     assertEquals(Char.MinValue.toString.asYaml, "\\u0000\n")
     assertEquals(Char.MaxValue.toString.asYaml, "\\uFFFF\n")
   }
+}

@@ -22,6 +22,7 @@ object PresenterImpl extends Presenter {
         head match {
           case s: Scalar =>
             insertSequencePadding()
+            if (!sb.isEmpty) sb.append(' ')
             serializeScalar(s)
             sb.append(newline)
             tail
@@ -49,7 +50,7 @@ object PresenterImpl extends Presenter {
               n -= 1
             }
             serializeScalar(s)
-            sb.append(':').append(' ')
+            sb.append(':')
             serializeMapping(serializeNode(tail))
           case _: MappingEnd.type =>
             indent -= 2
@@ -81,7 +82,7 @@ object PresenterImpl extends Presenter {
           sb.append(' ')
           n -= 1
         }
-        sb.append('-').append(' ')
+        sb.append('-')
       case _ => ()
     }
 

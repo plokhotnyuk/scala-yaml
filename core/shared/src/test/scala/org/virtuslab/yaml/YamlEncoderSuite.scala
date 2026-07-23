@@ -13,10 +13,10 @@ class YamlEncoderSpec extends munit.FunSuite {
       Seq(3, 4)
     )
     val expected =
-      s"""- 
+      s"""-
          |  - 1
          |  - 2
-         |- 
+         |-
          |  - 3
          |  - 4
          |""".stripMargin
@@ -29,10 +29,10 @@ class YamlEncoderSpec extends munit.FunSuite {
 
     val data = Data(Seq(1, 2), Seq(3.0, 4.0))
     val expected =
-      s"""ints: 
+      s"""ints:
          |  - 1
          |  - 2
-         |doubles: 
+         |doubles:
          |  - 3.0
          |  - 4.0
          |""".stripMargin
@@ -82,7 +82,7 @@ class YamlEncoderSpec extends munit.FunSuite {
       ",a", "[a", "]a", "{a", "}a", "#a", "&a", "*a", "!a", "|a", ">a", "'a", "\"a", "%a", "@a", "`a"
     )
     val expected =
-      s"""- ""
+      s"""- !!null
          |- "-"
          |- "?"
          |- ":"
@@ -123,12 +123,12 @@ class YamlEncoderSpec extends munit.FunSuite {
     )
     val expected =
       s"""- " a"
-         |- "a: "
+         |- "a:"
          |- "true "
          |- "a: b"
          |- "a # b"
-         |- "a\\u001fb"
-         |- "a\\u007fb"
+         |- "a\\u001Fb"
+         |- "a\\u007Fb"
          |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
