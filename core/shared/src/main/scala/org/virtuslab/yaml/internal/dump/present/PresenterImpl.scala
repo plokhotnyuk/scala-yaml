@@ -100,10 +100,11 @@ object PresenterImpl extends Presenter {
       val style = s.style
       val tag   = s.metadata.tag
       if (tag.contains(Tag.str)) {
-        if ((style eq ScalarStyle.DoubleQuoted) || (style eq ScalarStyle.Literal) ||
-          (style eq ScalarStyle.Folded) || requiresDoubleQuoting(value)) {
-          escapeDoubleQuoted(value)
-        } else if (style eq ScalarStyle.Plain) sb.append(value)
+        if (
+          (style eq ScalarStyle.DoubleQuoted) || (style eq ScalarStyle.Literal) ||
+          (style eq ScalarStyle.Folded) || requiresDoubleQuoting(value)
+        ) escapeDoubleQuoted(value)
+        else if (style eq ScalarStyle.Plain) sb.append(value)
         else if (style eq ScalarStyle.SingleQuoted) escapeSingleQuoted(value)
       } else if (tag.contains(Tag.nullTag)) sb.append("!!null")
       else sb.append(value)
@@ -114,10 +115,7 @@ object PresenterImpl extends Presenter {
       if (len == 0) return true
       var c     = s.charAt(0)
       val cLast = s.charAt(len - 1)
-      if (
-        c < 32 || c == 127 || cLast == ':' ||
-        Character.isWhitespace(c) || Character.isWhitespace(cLast)
-      ) return true
+      if (cLast == ':' || Character.isWhitespace(cLast)) return true
       (c: @switch) match {
         case 'n' | 'N' | '~' =>
           if (Tag.nullPattern.pattern.matcher(s).matches) return true
@@ -162,7 +160,7 @@ object PresenterImpl extends Presenter {
             '@' | '`' =>
           return true
         case _ =>
-
+          if (c < 32 || c == 127 || Character.isWhitespace(c)) return true
       }
       var prev = c
       var i    = 1
