@@ -99,12 +99,11 @@ object PresenterImpl extends Presenter {
       val style = s.style
       val tag   = s.metadata.tag
       if (tag.contains(Tag.str)) {
-        if ((style eq ScalarStyle.DoubleQuoted) || requiresDoubleQuoting(value)) {
+        if ((style eq ScalarStyle.DoubleQuoted) || (style eq ScalarStyle.Literal) ||
+          (style eq ScalarStyle.Folded) || requiresDoubleQuoting(value)) {
           escapeDoubleQuoted(value)
         } else if (style eq ScalarStyle.Plain) sb.append(value)
         else if (style eq ScalarStyle.SingleQuoted) escapeSingleQuoted(value)
-        else if (style eq ScalarStyle.Literal) escapeLiteral(value)
-        else if (style eq ScalarStyle.Folded) escapeFolded(value)
       } else if (tag.contains(Tag.nullTag)) sb.append("!!null")
       else sb.append(value)
     }
@@ -217,70 +216,6 @@ object PresenterImpl extends Presenter {
         i += 1
       }
       sb.append('\'')
-    }
-
-    def escapeLiteral(s: String): Unit = {
-      sb.append('|')
-      val len = s.length
-      if (len == 0) {
-        sb.append('-')
-        sb.append(newline)
-      } else {
-        if (s.charAt(len - 1) != '\n') sb.append('-')
-        else {
-          val lastNlLen = if (len >= 2 && s.charAt(len - 2) == '\r') 2 else 1
-          if (len > lastNlLen && s.charAt(len - lastNlLen - 1) == '\n') sb.append('+')
-        }
-        sb.append(newline)
-        var i         = 0
-        var isNewLine = true
-        while (i < len) {
-          val c      = s.charAt(i)
-          val isCRLF = c == '\r' && (i + 1 < len) && s.charAt(i + 1) == '\n'
-          if (isNewLine && c != '\n' && !isCRLF) {
-            var n = indent
-            while (n > 0) {
-              sb.append(' ')
-              n -= 1
-            }
-          }
-          sb.append(c)
-          isNewLine = c == '\n'
-          i += 1
-        }
-      }
-    }
-
-    def escapeFolded(s: String): Unit = {
-      sb.append('>')
-      val len = s.length
-      if (len == 0) {
-        sb.append('-')
-        sb.append(newline)
-      } else {
-        if (s.charAt(len - 1) != '\n') sb.append('-')
-        else {
-          val lastNlLen = if (len >= 2 && s.charAt(len - 2) == '\r') 2 else 1
-          if (len > lastNlLen && s.charAt(len - lastNlLen - 1) == '\n') sb.append('+')
-        }
-        sb.append(newline)
-        var i         = 0
-        var isNewLine = true
-        while (i < len) {
-          val c      = s.charAt(i)
-          val isCRLF = c == '\r' && (i + 1 < len) && s.charAt(i + 1) == '\n'
-          if (isNewLine && c != '\n' && !isCRLF) {
-            var n = indent
-            while (n > 0) {
-              sb.append(' ')
-              n -= 1
-            }
-          }
-          sb.append(c)
-          isNewLine = c == '\n'
-          i += 1
-        }
-      }
     }
 
     serializeNode(events.toList)
