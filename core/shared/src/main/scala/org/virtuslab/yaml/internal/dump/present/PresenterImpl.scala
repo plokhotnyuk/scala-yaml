@@ -98,14 +98,14 @@ object PresenterImpl extends Presenter {
       val value = s.value
       val style = s.style
       val tag   = s.metadata.tag
-      if (tag.exists(_ eq Tag.str)) {
+      if (tag.contains(Tag.str)) {
         if ((style eq ScalarStyle.DoubleQuoted) || requiresDoubleQuoting(value)) {
           escapeDoubleQuoted(value)
         } else if (style eq ScalarStyle.Plain) sb.append(value)
         else if (style eq ScalarStyle.SingleQuoted) escapeSingleQuoted(value)
         else if (style eq ScalarStyle.Literal) escapeLiteral(value)
         else if (style eq ScalarStyle.Folded) escapeFolded(value)
-      } else if (tag.exists(_ eq Tag.nullTag)) sb.append("!!null")
+      } else if (tag.contains(Tag.nullTag)) sb.append("!!null")
       else sb.append(value)
     }
 
