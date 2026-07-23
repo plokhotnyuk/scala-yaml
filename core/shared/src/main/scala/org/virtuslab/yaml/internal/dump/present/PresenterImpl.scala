@@ -22,7 +22,7 @@ object PresenterImpl extends Presenter {
         head match {
           case s: Scalar =>
             insertSequencePadding()
-            if (!sb.isEmpty) sb.append(' ')
+            if (sb.length() > 0) sb.append(' ')
             serializeScalar(s)
             sb.append(newline)
             tail
