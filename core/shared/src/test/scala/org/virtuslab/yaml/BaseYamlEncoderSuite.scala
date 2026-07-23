@@ -40,7 +40,7 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
       ",a", "[a", "]a", "{a", "}a", "#a", "&a", "*a", "!a", "|a", ">a", "'a", "\"a", "%a", "@a", "`a"
     )
     val expected =
-      s"""- !!null
+      s"""- ""
          |- "-"
          |- "?"
          |- ":"
@@ -163,9 +163,9 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
   test("map") {
     val data = Map("1" -> 'a', "2" -> 'b', "3" -> 'c')
     val expected =
-      s"""1: a
-         |2: b
-         |3: c
+      s""""1": a
+         |"2": b
+         |"3": c
          |""".stripMargin
     assertEquals(data.asYaml, expected)
   }
