@@ -105,7 +105,7 @@ class YamlEncoderSpec extends munit.FunSuite {
       )
     )
     val expected =
-      """version: 3.9
+      """version: "3.9"
         |services:
         |  web:
         |    build: .
