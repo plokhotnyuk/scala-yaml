@@ -157,11 +157,11 @@ object PresenterImpl extends Presenter {
             '@' | '`' =>
           return true
         case _ =>
-          if (
-            Character.isWhitespace(c) || Character.isWhitespace(s.charAt(len - 1)) ||
-            c < 32 || c == 127
-          ) return true
+
       }
+      if (
+        Character.isWhitespace(c) || Character.isWhitespace(s.charAt(len - 1)) || c < 32 || c == 127
+      ) return true
       var prev = c
       var i    = 1
       while (i < len) {
