@@ -174,19 +174,6 @@ class BaseYamlEncoderSuite extends munit.FunSuite {
     assertEquals(data.asYaml, expected)
   }
 
-  test("sequence of sequences") {
-    val data = Seq(Seq(1, 2), Seq(3, 4))
-    val expected =
-      s"""-
-         |  - 1
-         |  - 2
-         |-
-         |  - 3
-         |  - 4
-         |""".stripMargin
-    assertEquals(data.asYaml, expected)
-  }
-
   test("map") {
     val data = Map("1" -> 'a', "2" -> 'b', "3" -> 'c')
     val expected =

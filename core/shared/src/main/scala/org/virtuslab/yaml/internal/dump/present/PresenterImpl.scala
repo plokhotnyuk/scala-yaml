@@ -233,7 +233,7 @@ object PresenterImpl extends Presenter {
     def isCharNonPrintable(c: Char): Boolean =
       c <= '\u001F' || // C0 control block
         c == '\u007F' ||
-        c >= '\u0080' && c <= '\u009F' || // C1 control block (except for NEL \u0085)
+        c >= '\u0080' && c <= '\u009F' || // C1 control block
         c == '\uFFFE' || c == '\uFFFF'
 
     serializeNode(events.toList)
