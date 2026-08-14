@@ -30,7 +30,7 @@ object Tokenizer {
   def make(str: String): Tokenizer = new StringTokenizer(str)
 }
 
-private class StringTokenizer(str: String) extends Tokenizer {
+private final class StringTokenizer(str: String) extends Tokenizer {
 
   private val ctx = TokenizerContext(str)
   private val in  = ctx.reader
@@ -69,9 +69,10 @@ private class StringTokenizer(str: String) extends Tokenizer {
     val peeked = in.peek()
     peeked match {
       case Reader.nullTerminator =>
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.appendAll(ctx.checkIndents(-1))
-        queue.append(Token(StreamEnd, in.range))
+        queue
+          .appendAll(ctx.popPotentialKeys())
+          .appendAll(ctx.checkIndents(-1))
+          .append(new Token(StreamEnd, in.range))
       case '-' if isDocumentStart =>
         in.skipN(if (in.peek(3) == Reader.nullTerminator) 3 else 4)
         queue.appendAll(ctx.parseDocumentStart(in.column))
@@ -79,41 +80,35 @@ private class StringTokenizer(str: String) extends Tokenizer {
         // when last indent is lesser than current one, it means that this is start of the sequence
         if (ctx.isInBlockCollection && ctx.indent < in.column) {
           ctx.addIndent(in.column)
-          queue.append(Token(SequenceStart, in.range))
+          queue.append(new Token(SequenceStart, in.range))
         }
         if (ctx.isInBlockCollection && !ctx.isPlainKeyAllowed) {
           throw ScannerError.from(in.range, "cannot start sequence")
         }
         in.skipCharacter() // skip '-'
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(SequenceValue, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(SequenceValue, in.range))
       case '.' if isDocumentEnd =>
         in.skipN(if (in.peek(3) == Reader.nullTerminator) 3 else 4)
         queue.appendAll(ctx.parseDocumentEnd())
       case '[' =>
         in.skipCharacter()
         ctx.enterFlowSequence
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(FlowSequenceStart, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(FlowSequenceStart, in.range))
       case ']' =>
         in.skipCharacter()
         ctx.leaveFlowSequence
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(FlowSequenceEnd, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(FlowSequenceEnd, in.range))
       case '{' =>
         in.skipCharacter()
         ctx.enterFlowMapping
         ctx.isPlainKeyAllowed = true
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(FlowMappingStart, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(FlowMappingStart, in.range))
       case '}' =>
         in.skipCharacter()
         ctx.leaveFlowMapping
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(FlowMappingEnd, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(FlowMappingEnd, in.range))
       case '&' =>
-        val (name, range) = parseAnchorName()
-        val anchorToken   = Token(Anchor(name), range)
+        val anchorToken = parseAnchorToken(false)
         if (ctx.isPlainKeyAllowed) ctx.addPotentialKey(anchorToken)
         else queue.append(anchorToken)
       case '!' =>
@@ -128,8 +123,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
           }) sb.append(in.read())
           in.peek() match {
             case '>' =>
-              sb.append(in.read())
-              sb.toString
+              sb.append(in.read()).toString
             case _ =>
               throw ScannerError.from(in.range, "Lacks '>' which closes verbatim tag attribute")
           }
@@ -156,7 +150,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
           second match {
             case '!' => // tag handle starts with '!!'
               in.skipCharacter()
-              TagValue.Shorthand(TagHandle.Secondary, parseTagSuffix())
+              new TagValue.Shorthand(TagHandle.Secondary, parseTagSuffix())
             case _ => // tag handle starts with '!<char>' where char isn't space
               val sb = new java.lang.StringBuilder
               while ({
@@ -164,34 +158,33 @@ private class StringTokenizer(str: String) extends Tokenizer {
                 !(c == '[' || c == ']' || c == '{' || c == '}') && !c.isWhitespace && c != '!'
               }) sb.append(in.read())
               val c = in.peek()
-              if (c == '[' || c == ']' || c == '{' || c == '}')
+              if (c == '[' || c == ']' || c == '{' || c == '}') {
                 throw ScannerError.from(in.range, "Invalid character in tag")
+              }
               in.peek() match {
                 case '!' =>
                   sb.insert(0, '!')    // prepend already skipped exclamation mark
                   sb.append(in.read()) // append ending exclamation mark
-                  TagValue.Shorthand(TagHandle.Named(sb.toString), parseTagSuffix())
+                  new TagValue.Shorthand(new TagHandle.Named(sb.toString), parseTagSuffix())
                 case ' ' =>
-                  TagValue.Shorthand(TagHandle.Primary, sb.toString)
+                  new TagValue.Shorthand(TagHandle.Primary, sb.toString)
                 case _ => throw ScannerError.from(in.range, "Invalid tag handle")
               }
           }
 
         in.skipCharacter() // skip first '!'
-        val peeked = in.peek()
-        val tag: Tag = peeked match {
-          case Reader.nullTerminator =>
-            throw ScannerError.from(in.range, "Input stream ended unexpectedly")
+        val tag = new Tag(in.peek() match {
           case '<' =>
-            val tag = parseVerbatimTag()
-            Tag(TagValue.Verbatim(tag))
+            new TagValue.Verbatim(parseVerbatimTag())
           case ' ' =>
-            Tag(TagValue.NonSpecific)
-          case char =>
-            val tagValue = parseShorthandTag(char)
-            Tag(tagValue)
-        }
-        val token = Token(tag, range)
+            TagValue.NonSpecific
+          case c =>
+            if (c == Reader.nullTerminator) {
+              throw ScannerError.from(in.range, "Input stream ended unexpectedly")
+            }
+            parseShorthandTag(c)
+        })
+        val token = new Token(tag, range)
         if (ctx.isPlainKeyAllowed) ctx.addPotentialKey(token)
         else queue.append(token)
       case '%' =>
@@ -204,8 +197,8 @@ private class StringTokenizer(str: String) extends Tokenizer {
           case 'T' if in.peekN(3) == "TAG" =>
             in.skipN(3)
 
-            def parseTagHandle() = {
-              in.peekNext() match { // peeking next char!! current char is exclamation mark
+            def parseTagHandle(): TagHandle = {
+              in.peek(1) match { // peeking next char!! current char is exclamation mark
                 case ' ' =>
                   in.skipCharacter() // skip exclamation mark
                   TagHandle.Primary
@@ -215,37 +208,28 @@ private class StringTokenizer(str: String) extends Tokenizer {
                 case _ =>
                   val sb = new java.lang.StringBuilder
                   sb.append(in.read())
-
-                  def condition = {
+                  while ({
                     val c = in.peek()
                     !c.isWhitespace && c != '!'
-                  }
-
-                  while (condition) {
-                    sb.append(in.read())
-                  }
+                  }) sb.append(in.read())
                   sb.append(in.read())
-                  TagHandle.Named(sb.toString)
+                  new TagHandle.Named(sb.toString)
               }
             }
 
-            def parseTagPrefix() = {
+            def parseTagPrefix(): TagPrefix = {
               skipSpaces()
-              in.peek() match {
-                case '!' =>
-                  val sb = new java.lang.StringBuilder
-                  while (!in.peek().isWhitespace) {
-                    sb.append(in.read())
-                  }
-                  TagPrefix.Local(sb.toString)
-                case char if char != '!' && char != ',' =>
-                  val sb = new java.lang.StringBuilder
-                  while (!in.peek().isWhitespace) {
-                    sb.append(in.read())
-                  }
-                  TagPrefix.Global(sb.toString)
-                case _ => throw ScannerError.from(in.range, "Invalid tag prefix in TAG directive")
+              val c = in.peek()
+              if (c == ',') {
+                throw ScannerError.from(in.range, "Invalid tag prefix in TAG directive")
               }
+              val sb = new java.lang.StringBuilder
+              while (!in.peek().isWhitespace) {
+                sb.append(in.read())
+              }
+              val prefix = sb.toString
+              if (c == '!') new TagPrefix.Local(prefix)
+              else new TagPrefix.Global(prefix)
             }
 
             skipSpaces()
@@ -253,7 +237,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
               case '!' =>
                 val handle = parseTagHandle()
                 val prefix = parseTagPrefix()
-                queue.append(Token(TokenKind.TagDirective(handle, prefix), range))
+                queue.append(new Token(new TokenKind.TagDirective(handle, prefix), range))
               case _ =>
                 throw ScannerError.from(
                   in.range,
@@ -272,12 +256,12 @@ private class StringTokenizer(str: String) extends Tokenizer {
           case '"' =>
             in.skipCharacter()
             sb.toString
-          case '\\' if in.peekNext() == '"' =>
+          case '\\' if in.peek(1) == '"' =>
             in.skipN(2)
             sb.append('"')
             readScalar()
           case c =>
-            if (c == '\n' || c == '\r' && in.peekNext() == '\n') {
+            if (c == '\n' || c == '\r' && in.peek(1) == '\n') {
               skipUntilNextToken()
               sb.append(' ')
               readScalar()
@@ -293,7 +277,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         in.skipCharacter() // skip double quote
         val scalar      = readScalar()
         val endRange    = range.withEndPos(in.pos)
-        val scalarToken = Token(Scalar(scalar, ScalarStyle.DoubleQuoted), endRange)
+        val scalarToken = new Token(Scalar(scalar, ScalarStyle.DoubleQuoted), endRange)
         if (isPlainKeyAllowed) ctx.addPotentialKey(scalarToken)
         else queue.append(scalarToken)
       case '\'' =>
@@ -303,7 +287,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         def readScalar(): String = in.peek() match {
           case Reader.nullTerminator => sb.toString
           case '\'' =>
-            if (in.peekNext() == '\'') {
+            if (in.peek(1) == '\'') {
               in.skipN(2)
               sb.append('\'')
               readScalar()
@@ -326,7 +310,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         in.skipCharacter() // skip single quote
         val scalar      = readScalar()
         val endRange    = range.withEndPos(in.pos)
-        val scalarToken = Token(Scalar(scalar, ScalarStyle.SingleQuoted), endRange)
+        val scalarToken = new Token(Scalar(scalar, ScalarStyle.SingleQuoted), endRange)
         if (isPlainKeyAllowed) ctx.addPotentialKey(scalarToken)
         else queue.append(scalarToken)
       case '>' =>
@@ -362,7 +346,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
                   skipUntilNextIndent(foldedIndent)
                 }
                 if (in.column != foldedIndent || in.peek() == Reader.nullTerminator) {
-                  if (chompingIndicator == BlockChompingIndicator.Keep) sb.append('\n')
+                  if (chompingIndicator eq BlockChompingIndicator.Keep) sb.append('\n')
                   sb.toString
                 } else readFolded(prevCharWasNewline = true)
               } else {
@@ -371,11 +355,12 @@ private class StringTokenizer(str: String) extends Tokenizer {
                 if (in.column != foldedIndent || in.peek() == Reader.nullTerminator) {
                   chompingIndicator match {
                     case Keep => // if keep, strip all trailing newlines and spaces but count them and append counted amount of newlines
-                      var count    = 1
-                      var lastChar = sb.charAt(sb.length - 1)
-                      while (lastChar == '\n' || lastChar == ' ') {
+                      var count = 1
+                      while ({
+                        val lastChar = sb.charAt(sb.length - 1)
+                        lastChar == '\n' || lastChar == ' '
+                      }) {
                         sb.deleteCharAt(sb.length - 1)
-                        lastChar = sb.charAt(sb.length - 1)
                         count += 1
                       }
                       while (count > 0) {
@@ -383,17 +368,15 @@ private class StringTokenizer(str: String) extends Tokenizer {
                         count -= 1
                       }
                     case Strip => // if strip, strip all trailing newlines and spaces
-                      var lastChar = sb.charAt(sb.length - 1)
-                      while (lastChar == '\n' || lastChar == ' ') {
-                        sb.deleteCharAt(sb.length - 1)
-                        lastChar = sb.charAt(sb.length - 1)
-                      }
+                      while ({
+                        val lastChar = sb.charAt(sb.length - 1)
+                        lastChar == '\n' || lastChar == ' '
+                      }) sb.deleteCharAt(sb.length - 1)
                     case Clip => // if clip, strip all trailing newlines and spaces and append a single newline
-                      var lastChar = sb.charAt(sb.length - 1)
-                      while (lastChar == '\n' || lastChar == ' ') {
-                        sb.deleteCharAt(sb.length - 1)
-                        lastChar = sb.charAt(sb.length - 1)
-                      }
+                      while ({
+                        val lastChar = sb.charAt(sb.length - 1)
+                        lastChar == '\n' || lastChar == ' '
+                      }) sb.deleteCharAt(sb.length - 1)
                       sb.append('\n')
                   }
                   sb.toString // final result
@@ -418,7 +401,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         }
         val scalar        = readFolded()
         val chompedScalar = chompingIndicator.removeBlankLinesAtEnd(scalar)
-        queue.append(Token(Scalar(chompedScalar, ScalarStyle.Folded), range))
+        queue.append(new Token(Scalar(chompedScalar, ScalarStyle.Folded), range))
       case '|' =>
         val sb    = new java.lang.StringBuilder
         val range = in.range
@@ -429,7 +412,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
           if (indentationIndicator.isEmpty) parseIndentationIndicator()
           else indentationIndicator
         parseBlockHeader()
-        if (indentation.isEmpty) skipUntilNextChar()
+        if (indentation.isEmpty) in.skipWhitespaces()
         val foldedIndent = indentation.getOrElse(in.column)
         skipUntilNextIndent(foldedIndent)
 
@@ -450,38 +433,35 @@ private class StringTokenizer(str: String) extends Tokenizer {
 
         val scalar        = readLiteral()
         val chompedScalar = chompingIndicator.removeBlankLinesAtEnd(scalar)
-        queue.append(Token(Scalar(chompedScalar, ScalarStyle.Literal), range))
+        queue.append(new Token(Scalar(chompedScalar, ScalarStyle.Literal), range))
       case '*' =>
-        val (name, pos) = parseAnchorName()
-        val aliasToken  = Token(Alias(name), pos)
+        val aliasToken = parseAnchorToken(true)
         if (ctx.isPlainKeyAllowed) ctx.addPotentialKey(aliasToken)
         else queue.append(aliasToken)
       case ',' =>
         in.skipCharacter()
         ctx.isPlainKeyAllowed = true
-        queue.appendAll(ctx.popPotentialKeys())
-        queue.append(Token(Comma, in.range))
+        queue.appendAll(ctx.popPotentialKeys()).append(new Token(Comma, in.range))
       case ':' if in.isNextWhitespace || (ctx.isInFlowCollection && ctx.isPlainKeyAllowed) =>
         in.skipCharacter() // skip
-        val mappingValueToken = Token(MappingValue, in.range)
+        val mappingValueToken = new Token(MappingValue, in.range)
         lazy val firstSimpleKey = ctx.potentialKeys.headOption.getOrElse(
           throw ScannerError.from("Not found expected key for value", mappingValueToken)
         )
         if (ctx.isInBlockCollection && ctx.indent < firstSimpleKey.start.column) {
           ctx.addIndent(firstSimpleKey.start.column)
-          queue.append(Token(MappingStart, firstSimpleKey.range))
+          queue.append(new Token(MappingStart, firstSimpleKey.range))
         }
         val potentialKeys = ctx.popPotentialKeys()
         ctx.isPlainKeyAllowed = false
         if (
           ctx.isInBlockCollection &&
-          firstSimpleKey.range.end.exists(
-            _.line > firstSimpleKey.range.start.line
-          )
+          firstSimpleKey.range.end.exists(_.line > firstSimpleKey.range.start.line)
         ) throw ScannerError.from("Mapping value is not allowed", mappingValueToken)
-        queue.append(Token(MappingKey, in.range))
-        queue.appendAll(potentialKeys)
-        queue.append(mappingValueToken)
+        queue
+          .append(new Token(MappingKey, in.range))
+          .appendAll(potentialKeys)
+          .append(mappingValueToken)
       case _ =>
         val sb = new java.lang.StringBuilder
 
@@ -490,14 +470,13 @@ private class StringTokenizer(str: String) extends Tokenizer {
           val c = in.peek()
           if (
             c == Reader.nullTerminator ||
-            c == ':' && in.isNextWhitespace ||
-            c == ':' && in.peekNext() == ',' && ctx.isInFlowCollection ||
-            c == ' ' && in.peekNext() == '#' ||
+            c == ':' && (in.isNextWhitespace || in.peek(1) == ',' && ctx.isInFlowCollection) ||
+            c == ' ' && in.peek(1) == '#' ||
             c == '.' && isDocumentEnd && ctx.indent == -1 ||
             c == '-' && isDocumentStart && ctx.indent == -1 ||
             !ctx.isAllowedSpecialCharacter(c)
           ) sb.toString
-          else if (c == '\n' || c == '\r' && in.peekNext() == '\n') {
+          else if (c == '\n' || c == '\r' && in.peek(1) == '\n') {
             ctx.isPlainKeyAllowed = true
             if (in.isNextNewline) {
               while (in.isNextNewline) {
@@ -519,7 +498,7 @@ private class StringTokenizer(str: String) extends Tokenizer {
         val range             = in.range
         val scalar            = readScalar()
         val endRange          = range.withEndPos(in.pos)
-        val scalarToken       = Token(Scalar(scalar.trim, ScalarStyle.Plain), endRange)
+        val scalarToken       = new Token(Scalar(scalar.trim, ScalarStyle.Plain), endRange)
         if (isPlainKeyAllowed) ctx.addPotentialKey(scalarToken)
         else queue.append(scalarToken)
     }
@@ -539,15 +518,14 @@ private class StringTokenizer(str: String) extends Tokenizer {
     c1 == '.' && c2 == '.' && (c3.isWhitespace || c3 == Reader.nullTerminator)
   }
 
-  private def parseAnchorName(): (String, Range) = {
+  private def parseAnchorToken(isAlias: Boolean): Token = {
     val sb = new java.lang.StringBuilder
 
     @tailrec
     def readAnchorName(): String =
       in.peek() match {
         case Reader.nullTerminator => sb.toString
-        case char
-            if !(char == '[' || char == ']' || char == '{' || char == '}' || char == ',') && !in.isWhitespace =>
+        case c if !(c == '[' || c == ']' || c == '{' || c == '}' || c == ',') && !in.isWhitespace =>
           sb.append(in.read())
           readAnchorName()
         case _ => sb.toString
@@ -556,19 +534,21 @@ private class StringTokenizer(str: String) extends Tokenizer {
     val range = in.range
     in.skipCharacter()
     val name = readAnchorName()
-    (name, range)
+    new Token(
+      {
+        if (isAlias) new Alias(name)
+        else new Anchor(name)
+      },
+      range
+    )
   }
 
   /**
    * This header is followed by a non-content line break with an optional comment.
    */
   private def parseBlockHeader(): Unit = {
-    while (in.peek() == ' ')
-      in.skipCharacter()
-
-    if (in.peek() == '#')
-      skipComment()
-
+    while (in.peek() == ' ') in.skipCharacter()
+    if (in.peek() == '#') skipComment()
     if (in.isNewline) in.skipCharacter()
   }
 
@@ -590,17 +570,22 @@ private class StringTokenizer(str: String) extends Tokenizer {
     in.peek() match {
       case number if number.isDigit =>
         in.skipCharacter()
-        Some(number.asDigit)
+        new Some(number.asDigit)
       case _ => None
     }
 
   def skipUntilNextToken(): Unit = {
-    while (in.isWhitespace && !in.isNewline) in.skipCharacter()
-    if (in.peek() == '#') skipComment()
-    if (in.isNewline) {
-      ctx.isPlainKeyAllowed = true
+    var c: Char = 0
+    while ({
+      c = in.peek()
+      if (c == '#') {
+        skipComment()
+        c = in.peek()
+      }
+      c.isWhitespace
+    }) {
+      if (c == '\n' || c == '\r' && in.peek(1) == '\n') ctx.isPlainKeyAllowed = true
       in.skipCharacter()
-      skipUntilNextToken()
     }
   }
 
@@ -610,9 +595,8 @@ private class StringTokenizer(str: String) extends Tokenizer {
   def skipUntilNextIndent(indentBlock: Int): Unit =
     while (in.peek() == ' ' && in.column < indentBlock) in.skipCharacter()
 
-  def skipUntilNextChar() =
-    while (in.isWhitespace) in.skipCharacter()
+  def skipUntilNextChar() = in.skipWhitespaces()
 
-  private def skipComment(): Unit = while (in.peek() != Reader.nullTerminator && !in.isNewline)
-    in.skipCharacter()
+  private def skipComment(): Unit =
+    while (in.peek() != Reader.nullTerminator && !in.isNewline) in.skipCharacter()
 }
